@@ -294,13 +294,16 @@ subroutine IPModel_MBXPBC_Calc(this, at, e, local_e, f, virial, local_virial, ar
           write(*,*) ("force value" //force_eV_A(j,i))
         enddo
      enddo
-   else
-     if (present(e)) then
-       call get_energy_pbc(coord, sum_nats, lattice_mbx, e_kcal_mol)
-     endif
      write(*,*) ("E / kcal_mol"//e_kcal_mol)
      e_eV = e_kcal_mol*KCAL_MOL
      write(*,*) ("E / eV"//e_eV)
+   else
+     if (present(e)) then
+       call get_energy_pbc(coord, sum_nats, lattice_mbx, e_kcal_mol)
+       write(*,*) ("E / kcal_mol"//e_kcal_mol)
+       e_eV = e_kcal_mol*KCAL_MOL
+       write(*,*) ("E / eV"//e_eV)
+     endif
    endif
 
    !if (present(virial)) then

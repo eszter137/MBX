@@ -296,7 +296,7 @@ subroutine IPModel_MBX_Calc(this, at, e, local_e, f, virial, local_virial, args_
    real(dp), intent(out), optional :: e, local_e(:)
    real(dp), intent(out), optional :: f(:,:), local_virial(:,:)   !% Forces, dimensioned as \texttt{f(3,at%N)}, local virials, dimensioned as \texttt{local_virial(9,at%N)} 
    real(dp) :: e_kcal_mol, e_eV
-   real(dp) :: force_eV_A, grads_kcal_mol_A  
+   real(dp),allocatable :: force_eV_A(:,:), grads_kcal_mol_A(:)
    real(dp), intent(out), optional :: virial(3,3)
    real(dp),allocatable  :: coord(:)
    real(dp), dimension(3) :: lattice
@@ -336,15 +336,26 @@ subroutine IPModel_MBX_Calc(this, at, e, local_e, f, virial, local_virial, args_
    write(*,*) ("coord" // coord)
    ! Energy call no gradients no pbc
    if (present(f)) then
+     allocate(grads_kcal_mol_A(3*at%N))
+     allocate(force_eV_A(3,at%N))
      call get_energy_g(coord, sum_nats, e_kcal_mol, grads_kcal_mol_A)
-     force_eV_A = - grads_kcal_mol_A * KCAL_MOL
-   else
-     if (present(e)) then
-       call get_energy(coord, sum_nats, e_kcal_mol)
-     endif
+     do i=1,at%N
+        do j=1,3
+          force_eV_A(j,i) = -grads_kcal_mol_A(3*(i-1)+j)*KCAL_MOL
+          write(*,*) ("force "//j//","//i)
+          write(*,*) ("force value" //force_eV_A(j,i))
+        enddo
+     enddo
      write(*,*) ("E / kcal_mol"//e_kcal_mol)
      e_eV = e_kcal_mol*KCAL_MOL
      write(*,*) ("E / eV"//e_eV)
+   else
+     if (present(e)) then
+       call get_energy(coord, sum_nats, e_kcal_mol)
+       write(*,*) ("E / kcal_mol"//e_kcal_mol)
+       e_eV = e_kcal_mol*KCAL_MOL
+       write(*,*) ("E / eV"//e_eV)
+     endif
    endif
    !!write(*,*) "Testing functions that use an array of the coordinates "
    !!write(*,*)
@@ -371,6 +382,9 @@ subroutine IPModel_MBX_Calc(this, at, e, local_e, f, virial, local_virial, args_
    endif
 
    !RAISE_ERROR('IPModel_Calc - not implemented',error)
+   if (allocated(coord)) deallocate(coord)
+   if (allocated(grads_kcal_mol_A)) deallocate(grads_kcal_mol_A)
+   if (allocated(force_eV_A))  deallocate(force_eV_A)
 
 end subroutine IPModel_MBX_Calc
 
