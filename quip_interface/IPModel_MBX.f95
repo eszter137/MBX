@@ -120,10 +120,12 @@ subroutine IPModel_MBX_Initialise_str(this, args_str, param_str, error)
 
 
   external initialize_system
+  external finalize_system
 
 
   INIT_ERROR(error)
   call Finalise(this)
+  call finalize_system()
 
   call initialise(params)
   !write(*,*)  "DEBUGGING: initialised params reader"
@@ -271,7 +273,7 @@ end subroutine IPModel_MBX_Initialise_str
 
 subroutine IPModel_MBX_Finalise(this)
   type(IPModel_MBX), intent(inout) :: this
-  external finalize_system
+  !external finalize_system
 
   ! Add finalisation code here
 
@@ -285,7 +287,7 @@ subroutine IPModel_MBX_Finalise(this)
   this%nmon = 0
   this%json_file = ''
 
-  call finalize_system()
+  !call finalize_system()
 
 end subroutine IPModel_MBX_Finalise
 
