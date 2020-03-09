@@ -73,6 +73,7 @@ type IPModel_MBXPBC
   character(len=5),allocatable,dimension(:) :: monomers
   integer :: nmon
   character(len=STRING_LENGTH) :: json_file
+  logical :: diagonal_virial
 
 
   real(dp) :: cutoff = 0.0_dp
@@ -130,6 +131,7 @@ subroutine IPModel_MBXPBC_Initialise_str(this, args_str, param_str, error)
   call param_register(params, 'n_monomers_types', PARAM_MANDATORY, n_monomers_types_string, help_string="Numbers and types of monomers, format {2 CHHHH 3 OHH 1 CHHHH ...}")
   call param_register(params, 'nmon', PARAM_MANDATORY, this%nmon, help_string="Number of monomers")
   call param_register(params, 'json_file', PARAM_MANDATORY, json_file_string, help_string="Name of json file (to be already in the directory)")
+  call param_register(params, 'diagonal_virial', 'F', this%diagonal_virial, help_string="Whether to make the virial diagonal or not.")
 
   if(.not. param_read_line(params, args_str, ignore_unknown=.true., task='IPModel_MBXPBC_Initialise args_str')) then
      RAISE_ERROR("IPModel_MBXPBC_Init failed to parse args_str='"//trim(args_str)//"'", error)
@@ -341,12 +343,17 @@ subroutine IPModel_MBXPBC_Calc(this, at, e, local_e, f, virial, local_virial, ar
      call get_virial(virial_kcal_mol)
      write(*,*) ("Virial / orig units"//virial_kcal_mol)
      
-     do i=1,3
-       virial_eV(i,1) = (virial_kcal_mol(3*(i-1) + 1))*KCAL_MOL
-       virial_eV(i,2) = (virial_kcal_mol(3*(i-1) + 2))*KCAL_MOL
-       virial_eV(i,3) = (virial_kcal_mol(3*(i-1) + 3))*KCAL_MOL
-     enddo
-     
+     if (this%diagonal_virial) then
+       do i=1,3
+         virial_eV(i,i) = (virial_kcal_mol(3*(i-1) + i))*KCAL_MOL
+       enddo
+     else
+       do i=1,3
+         virial_eV(i,1) = (virial_kcal_mol(3*(i-1) + 1))*KCAL_MOL
+         virial_eV(i,2) = (virial_kcal_mol(3*(i-1) + 2))*KCAL_MOL
+         virial_eV(i,3) = (virial_kcal_mol(3*(i-1) + 3))*KCAL_MOL
+       enddo
+     endif
    !  write(*,*) ("Virial / quippy units")
    !  do i = 1,3
    !    !do j=1,3
