@@ -117,6 +117,7 @@ subroutine IPModel_MBXPBC_Initialise_str(this, args_str, param_str, error)
 
   integer:: i,j,k,mon_ind,at_ind,tmp_num_monomer,n_group1,n_group2,n_group3,n_group4,sum_nats
   real(dp),allocatable  :: coord(:)
+  logical:: json_file_exist
   external initialize_system
   external finalize_system
 
@@ -161,6 +162,10 @@ subroutine IPModel_MBXPBC_Initialise_str(this, args_str, param_str, error)
       end do
     end if
   end do
+
+  if (mon_ind .ne. this%nmon) then
+     
+  endif
   
   sum_nats = int(sum(this%nats))
   allocate(this%at_name(sum_nats))
@@ -183,6 +188,14 @@ subroutine IPModel_MBXPBC_Initialise_str(this, args_str, param_str, error)
 
 
   this%json_file = trim(adjustl(json_file_string))//CHAR(0)
+
+  inquire(file=this%json_file, exist=json_file_exist)
+  if (.not. json_file_exist) then
+      RAISE_ERROR('ERROR: specified json file is not in the directory!',error)
+  endif
+
+
+
   this%cutoff = 9.0_dp
 
   allocate( coord((3*sum_nats)) ) !j
@@ -192,6 +205,10 @@ subroutine IPModel_MBXPBC_Initialise_str(this, args_str, param_str, error)
   call initialize_system(coord, this%nats, this%at_name, this%monomers, this%nmon, this%json_file)
 
   !write(*,*) "Initialisation done"
+
+  if (mon_ind .ne. this%nmon) then
+    RAISE_ERROR('ERROR: IPModel_MBXPBC_Calc_Initialise: nmon does not agree with number of monomers in n_monomers_types!',error) 
+  endif
 
 
   if (allocated(nats_fields)) deallocate(nats_fields)
@@ -203,7 +220,7 @@ subroutine IPModel_MBXPBC_Initialise_str(this, args_str, param_str, error)
   json_file_string=""
   tmp_monomer_string=""
 
-  write(*,*) "Initialisation: deallocated variables "
+  !write(*,*) "Initialisation: deallocated variables "
 
 end subroutine IPModel_MBXPBC_Initialise_str
 
@@ -213,7 +230,7 @@ subroutine IPModel_MBXPBC_Finalise(this)
   type(IPModel_MBXPBC), intent(inout) :: this
   !external finalize_system
 
-  write(*,*) "IPModel_MBXPBC_Finalise was called"
+  !write(*,*) "IPModel_MBXPBC_Finalise was called"
   ! Add finalisation code here
   if (allocated(this%atomic_num)) deallocate(this%atomic_num)
   if (allocated(this%type_of_atomic_num)) deallocate(this%type_of_atomic_num)
@@ -251,11 +268,22 @@ subroutine IPModel_MBXPBC_Calc(this, at, e, local_e, f, virial, local_virial, ar
    real(dp) :: lattice_mbx(9)
    integer :: i, j
    integer :: sum_nats
+   !logical:: json_file_exist
 
    external get_energy_pbc
    external get_energy_pbc_g
+   external get_virial
 
-   ! Add calc() code here
+   if (at%N .ne. int(sum(this%nats))) then
+      RAISE_ERROR('ERROR: IPModel_MBXPBC_Calc was initialised with the wrong number of atoms ('//int(sum(this%nats))//')!',error)
+   endif 
+
+   !!! moved check to potential initialisation
+   !inquire(file=this%json_file, exist=json_file_exist)
+   !if (.not. json_file_exist) then
+   !   RAISE_ERROR('ERROR: specified json file is not in the directory!',error)
+   !endif 
+
 
    !write(*,*) ("number of atoms" // at%N)
    allocate( coord(3*at%N) ) !j
@@ -290,44 +318,46 @@ subroutine IPModel_MBXPBC_Calc(this, at, e, local_e, f, virial, local_virial, ar
      do i=1,at%N
         do j=1,3
           force_eV_A(j,i) = -grads_kcal_mol_A(3*(i-1)+j)*KCAL_MOL
-          write(*,*) ("force "//j//","//i)
-          write(*,*) ("force value" //force_eV_A(j,i))
+          !write(*,*) ("force "//j//","//i)
+          !write(*,*) ("force value" //force_eV_A(j,i))
         enddo
      enddo
      write(*,*) ("E / kcal_mol"//e_kcal_mol)
      e_eV = e_kcal_mol*KCAL_MOL
-     write(*,*) ("E / eV"//e_eV)
+     !write(*,*) ("E / eV"//e_eV)
    else
      if (present(e)) then
        call get_energy_pbc(coord, sum_nats, lattice_mbx, e_kcal_mol)
        write(*,*) ("E / kcal_mol"//e_kcal_mol)
        e_eV = e_kcal_mol*KCAL_MOL
-       write(*,*) ("E / eV"//e_eV)
+       !write(*,*) ("E / eV"//e_eV)
      endif
    endif
 
-   !if (present(virial)) then
-   !  call get_energy_pbc(coord, sum_nats, lattice_mbx, e_kcal_mol) ! if not called virial will be 0.
-   !  call get_virial(virial_kcal_mol)
-   !  write(*,*) ("Virial / orig units"//virial_kcal_mol)
-   !  
-   !  do i=1,3
-   !    virial_eV(i,1) = (virial_kcal_mol(3*(i-1) + 1))*KCAL_MOL
-   !    virial_eV(i,2) = (virial_kcal_mol(3*(i-1) + 2))*KCAL_MOL
-   !    virial_eV(i,3) = (virial_kcal_mol(3*(i-1) + 3))*KCAL_MOL
-   !  enddo
-   !  
+   if (present(virial)) then
+     if (.not. present(e)) then ! need to call energy calc before calculating the virial. 
+       call get_energy_pbc(coord, sum_nats, lattice_mbx, e_kcal_mol) ! if not called virial will be 0.
+     endif
+     call get_virial(virial_kcal_mol)
+     write(*,*) ("Virial / orig units"//virial_kcal_mol)
+     
+     do i=1,3
+       virial_eV(i,1) = (virial_kcal_mol(3*(i-1) + 1))*KCAL_MOL
+       virial_eV(i,2) = (virial_kcal_mol(3*(i-1) + 2))*KCAL_MOL
+       virial_eV(i,3) = (virial_kcal_mol(3*(i-1) + 3))*KCAL_MOL
+     enddo
+     
    !  write(*,*) ("Virial / quippy units")
    !  do i = 1,3
    !    !do j=1,3
    !      write(*,*) (virial_eV(i,j),j=1,3)
    !    !enddo
    !  enddo
-   !endif
+   endif
 
    INIT_ERROR(error)
 
-   if (present(e)) e = e_eV ! if (present(e)) e = 0.0_dp
+   if (present(e)) e = e_eV 
    if (present(local_e)) then
       RAISE_ERROR('IPModel_MBXPBC_Calc - local energies not implemented',error)
       call check_size('Local_E',local_e,(/at%N/),'IPModel_MBXPBC_Calc', error)
@@ -337,8 +367,8 @@ subroutine IPModel_MBXPBC_Calc(this, at, e, local_e, f, virial, local_virial, ar
       call check_size('Force',f,(/3,at%Nbuffer/),'IPModel_MBXPBC_Calc', error)
       f = force_eV_A 
    end if
-   if (present(virial)) virial = 0.0_dp
-   !if (present(virial)) virial = virial_eV
+   !if (present(virial)) virial = 0.0_dp
+   if (present(virial)) virial = virial_eV
    if (present(local_virial)) then
       RAISE_ERROR('IPModel_MBXPBC_Calc - local virials not implemented',error)
       call check_size('Local_virial',local_virial,(/9,at%Nbuffer/),'IPModel_MBXPBC_Calc', error)
