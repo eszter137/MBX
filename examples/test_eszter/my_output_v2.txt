@@ -1,0 +1,7 @@
+$ ~/programs/MBX/install/bin/single_point input_v2.nrg mbx_pbc_v2_cut7.json
+Energy= -5298.47
+Energy(nograd)= -5284.41
+$ ~/programs/MBX/install/bin/single_point input_v2.nrg mbx_pbc_v2_cut6.json
+Energy= -5298.47
+Energy(nograd)= -5284.41
+
