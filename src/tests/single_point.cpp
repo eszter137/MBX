@@ -59,6 +59,10 @@ int main(int argc, char** argv)
     double en = systems[0].Energy(true);
 
     std::cout << "Energy= " << en << std::endl;
+
+    double en2 = systems[0].Energy(false);
+    std::cout << "Energy(nograd)= " << en2 << std::endl;
+
     
     tools::WriteNrg("input_out.nrg", systems);
 
