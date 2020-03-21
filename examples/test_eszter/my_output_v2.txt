@@ -1,7 +1,16 @@
-$ ~/programs/MBX/install/bin/single_point input_v2.nrg mbx_pbc_v2_cut7.json
-Energy= -5298.47
-Energy(nograd)= -5284.41
 $ ~/programs/MBX/install/bin/single_point input_v2.nrg mbx_pbc_v2_cut6.json
+Energy= -5256.77
+Energy(nograd)= -5242.71
+
+#having a different (larger) cutoff doesn't modify the results
+$ ~/programs/MBX/install/bin/single_point input_v2.nrg mbx_pbc_v2_cut7.json
+Energy= -5256.77
+Energy(nograd)= -5242.71
+
+# it is also different when not having the 3B PIPs:
+
+$ ~/programs/MBX/install/bin/single_point input_v2.nrg mbx_pbc_v2_cut6_no_mww.json 
 Energy= -5298.47
 Energy(nograd)= -5284.41
+
 

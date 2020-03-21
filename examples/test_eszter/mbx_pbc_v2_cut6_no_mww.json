@@ -3,7 +3,7 @@
    "MBX" : { 
        "box" : [22.8,0.0,0.0,0.0,22.8,0.0,0.0,0.0,22.8],
        "twobody_cutoff"   : 9.0,
-       "threebody_cutoff" : 7.0, 
+       "threebody_cutoff" : 6.0, 
        "max_n_eval_1b"    : 500,
        "max_n_eval_2b"    : 500,
        "max_n_eval_3b"    : 500,
@@ -18,7 +18,7 @@
        "spline_order_disp" : 6,
        "ttm_pairs" : [],
        "ignore_2b_poly" : [],
-       "ignore_3b_poly" : []
+       "ignore_3b_poly" : [["ch4","h2o","h2o"]]
    } ,  
    "i-pi" : {
        "port" : 34543,
