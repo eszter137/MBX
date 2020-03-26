@@ -337,8 +337,9 @@ subroutine IPModel_MBXPBC_Calc(this, at, e, local_e, f, virial, local_virial, ar
    endif
 
    if (present(virial)) then
-     if (.not. present(e)) then ! need to call energy calc before calculating the virial. 
-       call get_energy_pbc(coord, sum_nats, lattice_mbx, e_kcal_mol) ! if not called virial will be 0.
+     if (.not. present(f)) then ! need to call energy calc before calculating the virial. 
+       allocate(grads_kcal_mol_A(3*at%N))
+       call get_energy_pbc_g(coord, sum_nats, lattice_mbx, e_kcal_mol, grads_kcal_mol_A)
      endif
      call get_virial(virial_kcal_mol)
      write(*,*) ("Virial / orig units"//virial_kcal_mol)
