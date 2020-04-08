@@ -1,0 +1,19 @@
+name: mbx-quippy 
+channels:
+  - conda-forge
+  - omnia 
+  - paesanilab 
+  - synthicity
+dependencies:
+  - python=2.7
+  - jupyter
+  - ipython
+  - ipykernel
+  - kernda
+  - numpy
+  - scipy
+  - scikit-learn
+  - matplotlib
+  - ase
+  - synthicity::prettytable
+  
