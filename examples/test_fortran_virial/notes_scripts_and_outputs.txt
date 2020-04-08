@@ -1,0 +1,7 @@
+this_list="test_pbc_v2 test_pbc_v2_no_mww test_pbc_v2_no_www_mww test_pbc_v2_no_pips test_pbc_v2_no_grad_call"
+for this in ${this_list}; do echo ${this}; ./${this} >  ${this}.out; done
+
+this_list="test_pbc_v2_no_mww_no_grad_call test_pbc_v2_no_www_mww_no_grad_call"
+for this in ${this_list}; do echo ${this}; ./${this} >  ${this}.out; done
+
+

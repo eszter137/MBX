@@ -182,6 +182,9 @@ subroutine IPModel_MBX_Initialise_str(this, args_str, param_str, error)
           !write(*,*) "DEBUGGING if statement comparing to CHHHH"
           this%monomers(mon_ind) = "ch4"//CHAR(0)
           this%nats(mon_ind) = 5 
+        else if (tmp_monomer_string .eq. 'COO') then
+          this%monomers(mon_ind) = "co2"//CHAR(0)
+          this%nats(mon_ind) = 3
         endif 
       end do
     end if
