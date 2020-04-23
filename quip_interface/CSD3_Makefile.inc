@@ -1,0 +1,47 @@
+# Place to override setting elsewhere, in particular things set in Makefile.csd3_x86_64_gfortran_openmp
+# look in /home/es732/Programs/QUIP_MBX/arch/Makefile.csd3_x86_64_gfortran_openmp for defaults set by arch
+# 
+# F77=gfortran
+# F90=gfortran
+# F95=gfortran
+# CC=gcc
+# CPLUSPLUS=g++
+# FPP=gfortran -E -x f95-cpp-input
+# LINKER=gfortran
+# LIBTOOL=
+# OPTIM=
+# COPTIM=
+# DEBUG=-O0 -g -DDUMP_CORE_ON_ABORT -DDEBUG -fbounds-check
+# DEBUG=
+# CDEBUG=
+MATH_LINKOPTS=-llapack -lblas
+EXTRA_LINKOPTS= /home/es732/Programs/MBX/install/lib/static/libmbxlib.a -lfftw3 -lhdf5 -lstdc++
+USE_MAKEDEP=1
+MAKEDEP=makedep.py
+HAVE_CP2K=0
+HAVE_VASP=0
+HAVE_TB=0
+HAVE_PRECON=1
+HAVE_LOTF=0
+HAVE_ONIOM=0
+HAVE_LOCAL_E_MIX=0
+HAVE_QC=0
+HAVE_GAP=0
+HAVE_GAP_FILLER=0
+HAVE_QR=1
+HAVE_THIRDPARTY=1
+HAVE_FX=0
+HAVE_SCME=0
+HAVE_MTP=0
+HAVE_MBD=0
+HAVE_TTM_NF=0
+HAVE_CH4=0
+NETCDF4_LIBS=-L/usr/local/Cluster-Apps/netcdf/4.4.1/lib -lnetcdf  
+NETCDF4_FLAGS=-I/usr/local/Cluster-Apps/netcdf/4.4.1/include -DpgiFortran
+HAVE_NETCDF4=0
+HAVE_MDCORE=0
+HAVE_ASAP=0
+HAVE_CGAL=0
+HAVE_METIS=0
+HAVE_LMTO_TBE=0
+SIZEOF_FORTRAN_T=2
