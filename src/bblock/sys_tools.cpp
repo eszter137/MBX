@@ -42,7 +42,7 @@ SOFTWARE WILL NOT INFRINGE ANY PATENT, TRADEMARK OR OTHER RIGHTS.
 namespace systools {
 
 std::vector<std::pair<std::string, size_t>> OrderMonomers(
-    std::vector<std::string> &mon, std::vector<size_t> sites, std::vector<size_t> nats,
+    std::vector<std::string> &mon, std::vector<size_t> &islocal, std::vector<size_t> sites, std::vector<size_t> nats,
     std::vector<size_t> &original2current_order, std::vector<std::pair<size_t, size_t>> &original_order,
     std::vector<std::pair<size_t, size_t>> &original_order_realSites) {
     // Make sure that mons, sites and nat have the same size and are
@@ -52,19 +52,23 @@ std::vector<std::pair<std::string, size_t>> OrderMonomers(
         throw CUException(__func__, __FILE__, __LINE__, text);
     }
 
-    if (mon.size() != sites.size() || mon.size() != nats.size()) {
+    if (mon.size() != sites.size() || mon.size() != nats.size() || mon.size() != islocal.size()) {
         std::string text = "Sizes of vectors mon(" + std::to_string(mon.size()) + "), sites(" +
                            std::to_string(sites.size()) + "), and nats(" + std::to_string(nats.size()) +
-                           ") don't match.";
+                           "), and islocal(" + std::to_string(islocal.size()) + ") don't match.";
         throw CUException(__func__, __FILE__, __LINE__, text);
     }
 
     // Create copy of the input monomers
     std::vector<std::string> monomers = mon;
 
+    // Create copy of the input local/ghost descriptors
+    std::vector<size_t> _is_local = islocal;
+
     // Make sure that the output vectors are cleared
     original2current_order.clear();
     mon.clear();
+    islocal.clear();
     original_order.clear();
     original_order_realSites.clear();
 
@@ -110,6 +114,7 @@ std::vector<std::pair<std::string, size_t>> OrderMonomers(
                 original_order.push_back(std::make_pair(i, site_pos));
                 original_order_realSites.push_back(std::make_pair(i, nat_pos));
                 mon.push_back(monid);
+                islocal.push_back(_is_local[i]);
                 original2current_order[i] = mon.size() - 1;
             }
             // Update loop variables
@@ -163,6 +168,10 @@ size_t SetUpMonomers(std::vector<std::string> mon, std::vector<size_t> &sites, s
         } else if (mon[i] == "co2") {
             sites.push_back(3);
             nat.push_back(3);
+        } else if (mon[i] == "h4_dummy") {
+            sites.push_back(4);
+            nat.push_back(4);
+
         } else if (mon[i] == "ar") {
             sites.push_back(1);
             nat.push_back(1);
@@ -201,11 +210,9 @@ size_t SetUpMonomers(std::vector<std::string> mon, std::vector<size_t> &sites, s
     return count;
 }
 
-void FixMonomerCoordinates(std::vector<double> &xyz, std::vector<double> box, std::vector<size_t> nat,
+void FixMonomerCoordinates(std::vector<double> &xyz, std::vector<double> box, std::vector<double> box_inv,
+                           std::vector<size_t> nat,
                            std::vector<size_t> first_index) {
-    // TODO assuming for now orthorombic box:
-    // box = {a,0,0,0,b,0,0,0,c)
-
     // Check that the box has 9 components
     // Any other size is not acceptable
     if (box.size() != 9) {
@@ -229,80 +236,101 @@ void FixMonomerCoordinates(std::vector<double> &xyz, std::vector<double> box, st
 
     size_t nmon = nat.size();
 
-    std::vector<double> box2 = box;
-    for (size_t i = 0; i < box.size(); i++) box2[i] *= 0.5;
-
     for (size_t i = 0; i < nmon; i++) {
-        size_t shift = 3 * first_index[i];
+        // Move first atom of monomer into main box
+        size_t shift3 = 3 * first_index[i];
 
-        // Put central atom in main box
-        double first_at[3];
-        for (size_t j = 0; j < 3; j++) {
-            double xyzi = xyz[shift + j];
-            if (xyzi < -box2[3 * j + j]) {
-                // here
-                xyz[shift + j] += box[3 * j + j];
-                // here
-            } else if (xyzi > box2[3 * j + j]) {
-                // here
-                xyz[shift + j] -= box[3 * j + j];
-            }
-            first_at[j] = xyz[shift + j];
-        }
+        double x_rec = box_inv[0] * xyz[shift3] + box_inv[3] * xyz[shift3 + 1] + box_inv[6] * xyz[shift3 + 2];
+        double y_rec = box_inv[1] * xyz[shift3] + box_inv[4] * xyz[shift3 + 1] + box_inv[7] * xyz[shift3 + 2];
+        double z_rec = box_inv[2] * xyz[shift3] + box_inv[5] * xyz[shift3 + 1] + box_inv[8] * xyz[shift3 + 2];
 
-        // Put rest of molecule atoms next to central atom
+        x_rec -= std::floor(x_rec + 0.5);
+        y_rec -= std::floor(y_rec + 0.5);
+        z_rec -= std::floor(z_rec + 0.5);
+
+        xyz[shift3 + 0] = box[0] * x_rec + box[3] * y_rec + box[6] * z_rec;
+        xyz[shift3 + 1] = box[1] * x_rec + box[4] * y_rec + box[7] * z_rec;
+        xyz[shift3 + 2] = box[2] * x_rec + box[5] * y_rec + box[8] * z_rec;
+
         for (size_t j = 1; j < nat[i]; j++) {
-            size_t j3 = j * 3;
-            for (size_t k = 0; k < 3; k++) {
-                double di = xyz[shift + j3 + k] - first_at[k];
-                // here
-                if (di > box2[3 * k + k]) {
-                    // here
-                    xyz[shift + j3 + k] -= box[3 * k + k];
-                    // here
-                } else if (di <= -box2[3 * k + k]) {
-                    // here
-                    xyz[shift + j3 + k] += box[3 * k + k];
-                }
-            }
+            double xr = box_inv[0] * xyz[shift3 + 3*j] 
+                      + box_inv[3] * xyz[shift3 + 3*j + 1] 
+                      + box_inv[6] * xyz[shift3 + 3*j + 2];
+            double yr = box_inv[1] * xyz[shift3 + 3*j] 
+                      + box_inv[4] * xyz[shift3 + 3*j + 1] 
+                      + box_inv[7] * xyz[shift3 + 3*j + 2];
+            double zr = box_inv[2] * xyz[shift3 + 3*j] 
+                      + box_inv[5] * xyz[shift3 + 3*j + 1] 
+                      + box_inv[8] * xyz[shift3 + 3*j + 2];
+
+            xr -= std::floor(xr - x_rec + 0.5); 
+            yr -= std::floor(yr - y_rec + 0.5); 
+            zr -= std::floor(zr - z_rec + 0.5);
+
+            xyz[shift3 + 3*j + 0] = box[0] * xr + box[3] * yr + box[6] * zr;
+            xyz[shift3 + 3*j + 1] = box[1] * xr + box[4] * yr + box[7] * zr;
+            xyz[shift3 + 3*j + 2] = box[2] * xr + box[5] * yr + box[8] * zr;
+            
         }
+
+ 
     }
 }
 
-void GetCloseDimerImage(std::vector<double> box, size_t nat1, size_t nat2, size_t nd, double *xyz1, double *xyz2) {
+void GetCloseDimerImage(std::vector<double> box, std::vector<double> box_inv, size_t nat1, size_t nat2, size_t nd, double *xyz1, double *xyz2) {
     size_t shift1 = 0;
     size_t shift2 = 0;
     size_t coords1 = 3 * nat1;
     size_t coords2 = 3 * nat2;
 
-    // Create a "box" with half of the sides
-    std::vector<double> box2 = box;
-    for (size_t i = 0; i < box.size(); i++) box2[i] *= 0.5;
-
     // Move every dimer to the right place
     for (size_t i = 0; i < nd; i++) {
-        for (size_t k = 0; k < 3; k++) {
-            double di = xyz2[shift2 + k] - xyz1[shift1 + k];
-            // here
-            if (di > box2[3 * k + k]) {
-                // here
-                for (size_t j = 0; j < nat2; j++) {
-                    xyz2[shift2 + 3 * j + k] -= box[3 * k + k];
-                }
-                // here
-            } else if (di <= -box2[3 * k + k]) {
-                // here
-                for (size_t j = 0; j < nat2; j++) {
-                    xyz2[shift2 + j * 3 + k] += box[3 * k + k];
-                }
-            }
-        }
+        // Move first atom of monomer into main box                                                               
+                                                                                                                  
+        double x_rec = box_inv[0] * xyz1[shift1] + box_inv[3] * xyz1[shift1 + 1] + box_inv[6] * xyz1[shift1 + 2]; 
+        double y_rec = box_inv[1] * xyz1[shift1] + box_inv[4] * xyz1[shift1 + 1] + box_inv[7] * xyz1[shift1 + 2]; 
+        double z_rec = box_inv[2] * xyz1[shift1] + box_inv[5] * xyz1[shift1 + 1] + box_inv[8] * xyz1[shift1 + 2];
+
+        double xr0 = box_inv[0] * xyz2[shift2]          
+                   + box_inv[3] * xyz2[shift2 + 1]      
+                   + box_inv[6] * xyz2[shift2 + 2];     
+        double yr0 = box_inv[1] * xyz2[shift2]          
+                   + box_inv[4] * xyz2[shift2 + 1]      
+                   + box_inv[7] * xyz2[shift2 + 2];     
+        double zr0 = box_inv[2] * xyz2[shift2]          
+                   + box_inv[5] * xyz2[shift2 + 1]      
+                   + box_inv[8] * xyz2[shift2 + 2];     
+
+        double dx0 = std::floor(xr0 - x_rec + 0.5);
+        double dy0 = std::floor(yr0 - y_rec + 0.5);
+        double dz0 = std::floor(zr0 - z_rec + 0.5);
+
+        for (size_t j = 0; j < nat2; j++) {                      
+            double xr = box_inv[0] * xyz2[shift2 + 3*j]                 
+                      + box_inv[3] * xyz2[shift2 + 3*j + 1]             
+                      + box_inv[6] * xyz2[shift2 + 3*j + 2];            
+            double yr = box_inv[1] * xyz2[shift2 + 3*j]                 
+                      + box_inv[4] * xyz2[shift2 + 3*j + 1]             
+                      + box_inv[7] * xyz2[shift2 + 3*j + 2];            
+            double zr = box_inv[2] * xyz2[shift2 + 3*j]                 
+                      + box_inv[5] * xyz2[shift2 + 3*j + 1]             
+                      + box_inv[8] * xyz2[shift2 + 3*j + 2];
+                                                                                                                  
+            xr -= dx0;                                                                   
+            yr -= dy0;                                                                   
+            zr -= dz0;                                                                   
+                                                                                                                  
+            xyz2[shift2 + 3*j + 0] = box[0] * xr + box[3] * yr + box[6] * zr;   
+            xyz2[shift2 + 3*j + 1] = box[1] * xr + box[4] * yr + box[7] * zr;   
+            xyz2[shift2 + 3*j + 2] = box[2] * xr + box[5] * yr + box[8] * zr;   
+        }                                                                                                         
+                                                                                                                  
         shift1 += coords1;
         shift2 += coords2;
     }
 }
 
-void GetCloseTrimerImage(std::vector<double> box, size_t nat1, size_t nat2, size_t nat3, size_t nt, double *xyz1,
+void GetCloseTrimerImage(std::vector<double> box, std::vector<double> box_inv, size_t nat1, size_t nat2, size_t nat3, size_t nt, double *xyz1,
                          double *xyz2, double *xyz3) {
     size_t shift1 = 0;
     size_t shift2 = 0;
@@ -311,47 +339,81 @@ void GetCloseTrimerImage(std::vector<double> box, size_t nat1, size_t nat2, size
     size_t coords2 = 3 * nat2;
     size_t coords3 = 3 * nat3;
 
-    // Create a "box" with half of the sides
-    std::vector<double> box2 = box;
-    for (size_t i = 0; i < box.size(); i++) box2[i] *= 0.5;
-
     for (size_t i = 0; i < nt; i++) {
-        // Moving (if necessary) monomer in xyz2
-        for (size_t k = 0; k < 3; k++) {
-            double di = xyz2[shift2 + k] - xyz1[shift1 + k];
-            // here
-            if (di > box2[3 * k + k]) {
-                // here
-                for (size_t j = 0; j < nat2; j++) {
-                    xyz2[shift2 + j * 3 + k] -= box[3 * k + k];
-                }
-                // here
-            } else if (di <= -box2[3 * k + k]) {
-                // here
-                for (size_t j = 0; j < nat2; j++) {
-                    xyz2[shift2 + j * 3 + k] += box[3 * k + k];
-                }
-            }
-        }
-
-        // Moving (if necessary) monomer in xyz3
-        for (size_t k = 0; k < 3; k++) {
-            double di = xyz3[shift3 + k] - xyz1[shift1 + k];
-            // here
-            if (di > box2[3 * k + k]) {
-                // here
-                for (size_t j = 0; j < nat3; j++) {
-                    xyz3[shift3 + j * 3 + k] -= box[3 * k + k];
-                }
-                // here
-            } else if (di <= -box2[3 * k + k]) {
-                // here
-                for (size_t j = 0; j < nat3; j++) {
-                    xyz3[shift3 + j * 3 + k] += box[3 * k + k];
-                }
-            }
-        }
-        shift1 += coords1;
+        double x_rec = box_inv[0] * xyz1[shift1] + box_inv[3] * xyz1[shift1 + 1] + box_inv[6] * xyz1[shift1 + 2]; 
+        double y_rec = box_inv[1] * xyz1[shift1] + box_inv[4] * xyz1[shift1 + 1] + box_inv[7] * xyz1[shift1 + 2]; 
+        double z_rec = box_inv[2] * xyz1[shift1] + box_inv[5] * xyz1[shift1 + 1] + box_inv[8] * xyz1[shift1 + 2]; 
+        
+        double xr0 = box_inv[0] * xyz2[shift2]                                                                    
+                   + box_inv[3] * xyz2[shift2 + 1]                                                                
+                   + box_inv[6] * xyz2[shift2 + 2];                                                               
+        double yr0 = box_inv[1] * xyz2[shift2]                                                                    
+                   + box_inv[4] * xyz2[shift2 + 1]                                                                
+                   + box_inv[7] * xyz2[shift2 + 2];                                                               
+        double zr0 = box_inv[2] * xyz2[shift2]                                                                    
+                   + box_inv[5] * xyz2[shift2 + 1]                                                                
+                   + box_inv[8] * xyz2[shift2 + 2];                                                               
+        
+        double dx0 = std::floor(xr0 - x_rec + 0.5);                                                               
+        double dy0 = std::floor(yr0 - y_rec + 0.5);                                                               
+        double dz0 = std::floor(zr0 - z_rec + 0.5);                                                               
+        
+        // Move monomer 2 to be the closest image to mon1 if needed
+        for (size_t j = 0; j < nat2; j++) {                                                                       
+            double xr = box_inv[0] * xyz2[shift2 + 3*j]                                                           
+                      + box_inv[3] * xyz2[shift2 + 3*j + 1]                                                       
+                      + box_inv[6] * xyz2[shift2 + 3*j + 2];                                                      
+            double yr = box_inv[1] * xyz2[shift2 + 3*j]                                                           
+                      + box_inv[4] * xyz2[shift2 + 3*j + 1]                                                       
+                      + box_inv[7] * xyz2[shift2 + 3*j + 2];                                                      
+            double zr = box_inv[2] * xyz2[shift2 + 3*j]                                                           
+                      + box_inv[5] * xyz2[shift2 + 3*j + 1]                                                       
+                      + box_inv[8] * xyz2[shift2 + 3*j + 2];                                                      
+                                                                                                                  
+            xr -= dx0;                                                                                            
+            yr -= dy0;                                                                                            
+            zr -= dz0;                                                                                            
+                                                                                                                  
+            xyz2[shift2 + 3*j + 0] = box[0] * xr + box[3] * yr + box[6] * zr;                                     
+            xyz2[shift2 + 3*j + 1] = box[1] * xr + box[4] * yr + box[7] * zr;                                     
+            xyz2[shift2 + 3*j + 2] = box[2] * xr + box[5] * yr + box[8] * zr;                                     
+        }                                                                                                         
+                                                                                                                  
+        // Move monomer 3 to be the closest image to mon1 if needed                                               
+        xr0 = box_inv[0] * xyz3[shift2]                                                                    
+            + box_inv[3] * xyz3[shift2 + 1]                                                                
+            + box_inv[6] * xyz3[shift2 + 2];                                                               
+        yr0 = box_inv[1] * xyz3[shift2]                                                                    
+            + box_inv[4] * xyz3[shift2 + 1]                                                                
+            + box_inv[7] * xyz3[shift2 + 2];                                                               
+        zr0 = box_inv[2] * xyz3[shift2]                                                                    
+            + box_inv[5] * xyz3[shift2 + 1]                                                                
+            + box_inv[8] * xyz3[shift2 + 2];                                                               
+                                                                                                                  
+        dx0 = std::floor(xr0 - x_rec + 0.5);                                                               
+        dy0 = std::floor(yr0 - y_rec + 0.5);                                                               
+        dz0 = std::floor(zr0 - z_rec + 0.5);                                                               
+                                                                                                                  
+        for (size_t j = 0; j < nat3; j++) {                                                                       
+            double xr = box_inv[0] * xyz3[shift3 + 3*j]                                                           
+                      + box_inv[3] * xyz3[shift3 + 3*j + 1]                                                       
+                      + box_inv[6] * xyz3[shift3 + 3*j + 2];                                                      
+            double yr = box_inv[1] * xyz3[shift3 + 3*j]                                                           
+                      + box_inv[4] * xyz3[shift3 + 3*j + 1]                                                       
+                      + box_inv[7] * xyz3[shift3 + 3*j + 2];                                                      
+            double zr = box_inv[2] * xyz3[shift3 + 3*j]                                                           
+                      + box_inv[5] * xyz3[shift3 + 3*j + 1]                                                       
+                      + box_inv[8] * xyz3[shift3 + 3*j + 2];                                                      
+                                                                                                                  
+            xr -= dx0;                                                                                            
+            yr -= dy0;                                                                                            
+            zr -= dz0;                                                                                            
+                                                                                                                  
+            xyz3[shift2 + 3*j + 0] = box[0] * xr + box[3] * yr + box[6] * zr;                                     
+            xyz3[shift2 + 3*j + 1] = box[1] * xr + box[4] * yr + box[7] * zr;                                     
+            xyz3[shift2 + 3*j + 2] = box[2] * xr + box[5] * yr + box[8] * zr;                                     
+        } 
+        shift1 += coords1;                                                                                        
         shift2 += coords2;
         shift3 += coords3;
     }
@@ -359,82 +421,10 @@ void GetCloseTrimerImage(std::vector<double> box, size_t nat1, size_t nat2, size
 
 bool ComparePair(std::pair<size_t, double> a, std::pair<size_t, double> b) { return a.first < b.first; }
 
-//void GetCloseNeighbors(kdtutils::PointCloud<double> ptc, std::vector<double> reference, double cutoff,
-//                       std::vector<double> &xyz_out, std::vector<size_t> &indexes) {
-//    // Build the tree
-//    typedef nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<double, kdtutils::PointCloud<double>>,
-//                                                kdtutils::PointCloud<double>, 3 /* dim */>
-//        my_kd_tree_t;
-//    my_kd_tree_t index(3 /*dim*/, ptc, nanoflann::KDTreeSingleIndexAdaptorParams(10 /* max leaf */));
-//    index.buildIndex();
-//
-//    // Tree is built
-//
-//    // Reset indexes and output coordinates
-//    indexes.clear();
-//    xyz_out.clear();
-//
-//    // Perform the search
-//    std::vector<std::pair<size_t, double>> ret_matches;
-//    nanoflann::SearchParams params;
-//    const size_t nMatches = index.radiusSearch(reference.data(), cutoff * cutoff, ret_matches, params);
-//
-//    std::sort(ret_matches.begin(), ret_matches.end(), ComparePair);
-//
-//    // Resize xyz_out to be 3*nMatches
-//    xyz_out.resize(3 * nMatches);
-//    indexes.resize(nMatches);
-//
-//    // Add the pairs that are not in the pairs vector
-//    for (size_t j = 0; j < nMatches; j++) {
-//        indexes[j] = ret_matches[j].first;
-//        size_t index = indexes[j];
-//        // Add coordinates in vectorized order
-//        xyz_out[j] = ptc.pts[index].x;
-//        xyz_out[j + nMatches] = ptc.pts[index].y;
-//        xyz_out[j + 2 * nMatches] = ptc.pts[index].z;
-//    }
-//}
-
-//void GetCloseNeighbors(size_t nmax, std::vector<double> point, std::vector<double> xyz_orig, std::vector<size_t> fi_at,
-//                       bool use_pbc, std::vector<double> box, double cutoff, std::vector<size_t> &dimers,
-//                       std::vector<size_t> &trimers) {
-//    size_t npoints = fi_at.size();
-//    std::vector<double> xyz_points(3 * npoints);
-//    for (size_t i = 0; i < npoints; i++) {
-//        xyz_points[3 * i + 0] = xyz_orig[3 * fi_at[i] + 0];
-//        xyz_points[3 * i + 1] = xyz_orig[3 * fi_at[i] + 1];
-//        xyz_points[3 * i + 2] = xyz_orig[3 * fi_at[i] + 2];
-//    }
-//
-//    // Obtain the data in the structure needed by the kd-tree
-//    kdtutils::PointCloud<double> ptc = kdtutils::XyzToCloud(xyz_points, use_pbc, box);
-//
-//    // Build the tree
-//    typedef nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<double, kdtutils::PointCloud<double>>,
-//                                                kdtutils::PointCloud<double>, 3 /* dim */>
-//        my_kd_tree_t;
-//    my_kd_tree_t index(3 /*dim*/, ptc, nanoflann::KDTreeSingleIndexAdaptorParams(10 /* max leaf */));
-//    index.buildIndex();
-//
-//    // Perform a radial search within the cutoff
-//    dimers.clear();
-//    if (nmax > 2) trimers.clear();
-//
-//    // Perform the search
-//    std::vector<std::pair<size_t, double>> ret_matches;
-//    nanoflann::SearchParams params;
-//    const size_t nMatches = index.radiusSearch(point.data(), cutoff * cutoff, ret_matches, params);
-//
-//    // TODO does ret_matches start at 0?
-//    for (size_t j = 0; j < nMatches; j++) {
-//        dimers.push_back(ret_matches[j].first);
-//    }
-//}
-
 void AddClusters(size_t n_max, double cutoff, size_t istart, size_t iend, size_t nmon, bool use_pbc,
-                 std::vector<double> box, std::vector<double> xyz_orig, std::vector<size_t> first_index,
-                 std::vector<size_t> &dimers, std::vector<size_t> &trimers) {
+                 std::vector<double> box, std::vector<double> box_inverse, std::vector<double> xyz_orig, std::vector<size_t> first_index,
+                 std::vector<size_t> is_local, std::vector<size_t> &dimers, std::vector<size_t> &trimers,
+                 bool use_ghost) {
     // istart is the monomer position for which we will look all dimers and
     // trimers that contain it. iend is the last monomer position.
     // This means, if istart is 0 and iend is 2, we will look for all dimers
@@ -444,20 +434,73 @@ void AddClusters(size_t n_max, double cutoff, size_t istart, size_t iend, size_t
     // xyz_orig is a double vector with positions of all atoms
     // first_index is a size_t vector with the first index of the site 'i'
     // in in the monomer vector
+    // is_local is local/ghost descriptor for monomers; interactions involving
+    //  all ghost monomers are ignored
+    // use_ghost controls whether or not to include ghost monomers in clusters; default is no.
     // dimers and trimers will be filled with the dimers and trimers found
+
+    // if use_ghost == true,
+    //       include local+ghost monomers in xyz, but only include local-ghost interactions
+    // if use_ghost == false,
+    //       include only local monomers in xyz and do nothing special
+
+    // Perform a radial search within the cutoff
+    dimers.clear();
+    if (n_max > 2) trimers.clear();
+
+    // if first monomer is ghost and we're not computing local-ghost interactions, then skip
+
+    if (!use_ghost && !is_local[istart]) return;
 
     // Obtain xyz vector with the positions of first atom of each monomer
     std::vector<double> xyz;
+    size_t nmon2 = 0;
+
+    std::vector<size_t> mon_index;
     for (size_t i = istart; i < nmon; i++) {
-        xyz.push_back(xyz_orig[3 * first_index[i]]);
-        xyz.push_back(xyz_orig[3 * first_index[i] + 1]);
-        xyz.push_back(xyz_orig[3 * first_index[i] + 2]);
+        size_t islsum = is_local[istart] + is_local[i];
+
+        bool include_monomer = false;
+        if (n_max == 2) {
+            if (i == istart) {
+                if (use_ghost)
+                    include_monomer = true;
+                else if (!use_ghost && islsum == 2)
+                    include_monomer = true;
+            } else {
+                if (use_ghost && islsum == 1)
+                    include_monomer = true;
+                else if (!use_ghost && islsum == 2)
+                    include_monomer = true;
+            }
+        } else {  // trimer
+            if (i == istart) {
+                if (use_ghost)
+                    include_monomer = true;
+                else if (!use_ghost && islsum == 2)
+                    include_monomer = true;
+            } else {
+                if (use_ghost)
+                    include_monomer = true;
+                else if (!use_ghost && islsum == 2)
+                    include_monomer = true;
+            }
+        }
+
+        if (include_monomer) {
+            xyz.push_back(xyz_orig[3 * first_index[i]]);
+            xyz.push_back(xyz_orig[3 * first_index[i] + 1]);
+            xyz.push_back(xyz_orig[3 * first_index[i] + 2]);
+            mon_index.push_back(i);
+            nmon2++;
+        }
     }
 
-    size_t nmon2 = nmon - istart;
+    if (nmon2 < 2) return;
+    if (n_max > 2 && nmon2 < 3) return;
 
     // Obtain the data in the structure needed by the kd-tree
-    kdtutils::PointCloud<double> ptc = kdtutils::XyzToCloud(xyz, use_pbc, box);
+    kdtutils::PointCloud<double> ptc = kdtutils::XyzToCloud(xyz, use_pbc, box, box_inverse);
 
     // Build the tree
     typedef nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<double, kdtutils::PointCloud<double>>,
@@ -465,10 +508,6 @@ void AddClusters(size_t n_max, double cutoff, size_t istart, size_t iend, size_t
         my_kd_tree_t;
     my_kd_tree_t index(3 /*dim*/, ptc, nanoflann::KDTreeSingleIndexAdaptorParams(10 /* max leaf */));
     index.buildIndex();
-
-    // Perform a radial search within the cutoff
-    dimers.clear();
-    if (n_max > 2) trimers.clear();
 
     std::vector<size_t> idone;
     std::set<std::pair<size_t, size_t>> donej;
@@ -498,8 +537,21 @@ void AddClusters(size_t n_max, double cutoff, size_t istart, size_t iend, size_t
             if (ret_matches[j].first > i) {
                 retdim = donej.insert(std::make_pair(i, ret_matches[j].first));
                 if (retdim.second) {
-                    dimers.push_back(i + istart);
-                    dimers.push_back(ret_matches[j].first + istart);
+                    // ghost == 0, local == 1
+                    // ghost-ghost == 0
+                    // ghost-local == 1 for all permutations
+                    // local-local == 2
+
+                    size_t islsum = is_local[mon_index[i]] + is_local[mon_index[ret_matches[j].first]];
+
+                    bool include_dimer = false;
+                    if (use_ghost && islsum == 1) include_dimer = true;   // local-ghost
+                    if (!use_ghost && islsum == 2) include_dimer = true;  // local-local
+
+                    if (include_dimer) {
+                        dimers.push_back(mon_index[i]);
+                        dimers.push_back(mon_index[ret_matches[j].first]);
+                    }
                 }
 
                 // Add trimers if requested
@@ -509,9 +561,23 @@ void AddClusters(size_t n_max, double cutoff, size_t istart, size_t iend, size_t
                         if (ret_matches[k].first > ret_matches[j].first) {
                             ret = donek.insert(std::make_pair(ret_matches[j].first, ret_matches[k].first));
                             if (ret.second) {
-                                trimers.push_back(i + istart);
-                                trimers.push_back(ret_matches[j].first + istart);
-                                trimers.push_back(ret_matches[k].first + istart);
+                                // ghost == 0, local == 1
+                                // ghost-ghost-ghost == 0
+                                // ghost-ghost-local == 1 for all permutations
+                                // ghost-local-local == 2 for all permutations
+                                // local-local-local == 3
+                                size_t islsum = is_local[mon_index[i]] + is_local[mon_index[ret_matches[j].first]] +
+                                                is_local[mon_index[ret_matches[k].first]];
+
+                                bool include_trimer = false;
+                                if (use_ghost && (islsum == 1 || islsum == 2)) include_trimer = true;
+                                if (!use_ghost && islsum == 3) include_trimer = true;
+
+                                if (include_trimer) {
+                                    trimers.push_back(mon_index[i]);
+                                    trimers.push_back(mon_index[ret_matches[j].first]);
+                                    trimers.push_back(mon_index[ret_matches[k].first]);
+                                }
                             }
                         }
                     }
@@ -545,9 +611,23 @@ void AddClusters(size_t n_max, double cutoff, size_t istart, size_t iend, size_t
                             }
                             ret = donek.insert(std::make_pair(jel, kel));
                             if (ret.second && kel > jel) {
-                                trimers.push_back(i + istart);
-                                trimers.push_back(jel + istart);
-                                trimers.push_back(kel + istart);
+                                // ghost == 0, local == 1
+                                // ghost-ghost-ghost == 0
+                                // ghost-ghost-local == 1 for all permutations
+                                // ghost-local-local == 2 for all permutations
+                                // local-local-local == 3
+                                size_t islsum =
+                                    is_local[mon_index[i]] + is_local[mon_index[jel]] + is_local[mon_index[kel]];
+
+                                bool include_trimer = false;
+                                if (use_ghost && (islsum == 1 || islsum == 2)) include_trimer = true;
+                                if (!use_ghost && islsum == 3) include_trimer = true;
+
+                                if (include_trimer) {
+                                    trimers.push_back(mon_index[i]);
+                                    trimers.push_back(mon_index[jel]);
+                                    trimers.push_back(mon_index[kel]);
+                                }
                             }
                         }
                     }
@@ -598,17 +678,30 @@ void GetExcluded(std::string mon, excluded_set_type &exc12, excluded_set_type &e
         exc13.insert(std::make_pair(1, 2));
     }
 
-        if (mon == "nh3") {
-            // 12 distances
-            exc12.insert(std::make_pair(0, 1));
-            exc12.insert(std::make_pair(0, 3));
-            exc12.insert(std::make_pair(0, 2));
-            // 13 distances
-            exc13.insert(std::make_pair(1, 2));
-            exc13.insert(std::make_pair(1, 3));
-            exc13.insert(std::make_pair(2, 3));
-            // 14 distances
-        }
+    if (mon == "h4_dummy") {
+        // 12 distances
+        exc12.insert(std::make_pair(0, 1));
+        exc12.insert(std::make_pair(0, 2));
+        exc12.insert(std::make_pair(0, 3));
+        // 13 distances
+        exc13.insert(std::make_pair(1, 2));
+        exc13.insert(std::make_pair(1, 3));
+        exc13.insert(std::make_pair(2, 3));
+        // 14 distances
+    }
+
+    if (mon == "nh3") {
+        // 12 distances
+        exc12.insert(std::make_pair(0, 1));
+        exc12.insert(std::make_pair(0, 3));
+        exc12.insert(std::make_pair(0, 2));
+        // 13 distances
+        exc13.insert(std::make_pair(1, 2));
+        exc13.insert(std::make_pair(1, 3));
+        exc13.insert(std::make_pair(2, 3));
+        // 14 distances
+    }
+
     // =====>> END SECTION EXCLUDED <<=====
 }
 
@@ -747,6 +840,14 @@ void SetCharges(std::vector<double> xyz, std::vector<double> &charges, std::stri
             charges[fst_ind + nv * nsites + 1] = -0.3530135 * CHARGECON;
             charges[fst_ind + nv * nsites + 2] = -0.3530135 * CHARGECON;
         }
+    } else if (mon_id == "h4_dummy") {
+        for (size_t nv = 0; nv < n_mon; nv++) {
+            charges[fst_ind + nv * nsites + 0] = 0.00000;
+            charges[fst_ind + nv * nsites + 1] = 0.00000;
+            charges[fst_ind + nv * nsites + 2] = 0.00000;
+            charges[fst_ind + nv * nsites + 3] = 0.00000;
+        }
+
     } else if (mon_id == "dummy") {
         for (size_t nv = 0; nv < n_mon; nv++) {
             charges[fst_ind + nv] = 0.0;
@@ -756,14 +857,13 @@ void SetCharges(std::vector<double> xyz, std::vector<double> &charges, std::stri
             charges[fst_ind + nv] = 0.0;
         }
 
-
-        } else if (mon_id == "nh3") {
-            for (size_t nv = 0; nv < n_mon; nv++) {
-                charges[fst_ind + nv*nsites + 0] = -0.884096 * CHARGECON;
-                charges[fst_ind + nv*nsites + 1] = 0.29469866666666666 * CHARGECON;
-                charges[fst_ind + nv*nsites + 2] = 0.29469866666666666 * CHARGECON;
-                charges[fst_ind + nv*nsites + 3] = 0.29469866666666666 * CHARGECON;
-            }
+    } else if (mon_id == "nh3") {
+        for (size_t nv = 0; nv < n_mon; nv++) {
+            charges[fst_ind + nv * nsites + 0] = -0.884096 * CHARGECON;
+            charges[fst_ind + nv * nsites + 1] = 0.29469866666666666 * CHARGECON;
+            charges[fst_ind + nv * nsites + 2] = 0.29469866666666666 * CHARGECON;
+            charges[fst_ind + nv * nsites + 3] = 0.29469866666666666 * CHARGECON;
+        }
         // END SECTION CHARGES
 
         // Note, for now, assuming only water has site dependant charges
@@ -872,6 +972,14 @@ void SetPolfac(std::vector<double> &polfac, std::string mon_id, size_t n_mon, si
             polfac[fst_ind + nv * nsites + 1] = 0.769790;
             polfac[fst_ind + nv * nsites + 2] = 0.769790;
         }
+    } else if (mon_id == "h4_dummy") {
+        for (size_t nv = 0; nv < n_mon; nv++) {
+            polfac[fst_ind + nv * nsites + 0] = 0.00000;
+            polfac[fst_ind + nv * nsites + 1] = 0.00000;
+            polfac[fst_ind + nv * nsites + 2] = 0.00000;
+            polfac[fst_ind + nv * nsites + 3] = 0.00000;
+        }
+
     } else if (mon_id == "dummy") {
         for (size_t nv = 0; nv < n_mon; nv++) {
             polfac[fst_ind + nv] = 0.0;
@@ -881,13 +989,13 @@ void SetPolfac(std::vector<double> &polfac, std::string mon_id, size_t n_mon, si
             polfac[fst_ind + nv] = 1.645;
         }
 
-        } else if (mon_id == "nh3") {
-            for (size_t nv = 0; nv < n_mon; nv++) {
-                polfac[fst_ind + nv*nsites + 0] = 0.9550488255698475;
-                polfac[fst_ind + nv*nsites + 1] = 0.3640594262763482 ;
-                polfac[fst_ind + nv*nsites + 2] = 0.3640594262763482 ;
-                polfac[fst_ind + nv*nsites + 3] = 0.3640594262763482 ;
-            }
+    } else if (mon_id == "nh3") {
+        for (size_t nv = 0; nv < n_mon; nv++) {
+            polfac[fst_ind + nv * nsites + 0] = 0.9550488255698475;
+            polfac[fst_ind + nv * nsites + 1] = 0.3640594262763482;
+            polfac[fst_ind + nv * nsites + 2] = 0.3640594262763482;
+            polfac[fst_ind + nv * nsites + 3] = 0.3640594262763482;
+        }
         // =====>> END SECTION POLFACS <<=====
 
     } else if (mon_id == "h2o") {
@@ -956,6 +1064,13 @@ void SetPol(std::vector<double> &pol, std::string mon_id, size_t n_mon, size_t n
             pol[fst_ind + nv * nsites + 1] = 0.769790;
             pol[fst_ind + nv * nsites + 2] = 0.769790;
         }
+    } else if (mon_id == "h4_dummy") {
+        for (size_t nv = 0; nv < n_mon; nv++) {
+            pol[fst_ind + nv * nsites + 0] = 0.00000;
+            pol[fst_ind + nv * nsites + 1] = 0.00000;
+            pol[fst_ind + nv * nsites + 2] = 0.00000;
+            pol[fst_ind + nv * nsites + 3] = 0.00000;
+        }
     } else if (mon_id == "dummy") {
         for (size_t nv = 0; nv < n_mon; nv++) {
             pol[fst_ind + nv] = 0.0;
@@ -965,13 +1080,13 @@ void SetPol(std::vector<double> &pol, std::string mon_id, size_t n_mon, size_t n
             pol[fst_ind + nv] = 1.645;
         }
 
-        } else if (mon_id == "nh3") {
-            for (size_t nv = 0; nv < n_mon; nv++) {
-                pol[fst_ind + nv*nsites + 0] = 0.9550488255698475;
-                pol[fst_ind + nv*nsites + 1] = 0.3640594262763482 ;
-                pol[fst_ind + nv*nsites + 2] = 0.3640594262763482 ;
-                pol[fst_ind + nv*nsites + 3] = 0.3640594262763482 ;
-            }
+    } else if (mon_id == "nh3") {
+        for (size_t nv = 0; nv < n_mon; nv++) {
+            pol[fst_ind + nv * nsites + 0] = 0.9550488255698475;
+            pol[fst_ind + nv * nsites + 1] = 0.3640594262763482;
+            pol[fst_ind + nv * nsites + 2] = 0.3640594262763482;
+            pol[fst_ind + nv * nsites + 3] = 0.3640594262763482;
+        }
         // =====>> END SECTION POLS <<=====
 
     } else if (mon_id == "h2o") {
@@ -1004,38 +1119,38 @@ void SetC6LongRange(std::vector<double> &c6_lr, std::string mon_id, size_t n_mon
     } else if (mon_id == "cl") {
         for (size_t nv = 0; nv < n_mon; nv++) c6_lr[fst_ind + nv] = 57.88297168036554772821;
     } else if (mon_id == "br") {
-    // FIXME This value will be set from C6 Br-O and Br-H. Qchem does not allow
-    // C6 calculations for only pseudopotential atoms, i.e. 2 bromide, iodide...)
-    // It will be calculated as:
-    // (C6(Br--O)/C6_lr(O) + C6(Br--H)/C6_lr(H)) / 2 
+        // FIXME This value will be set from C6 Br-O and Br-H. Qchem does not allow
+        // C6 calculations for only pseudopotential atoms, i.e. 2 bromide, iodide...)
+        // It will be calculated as:
+        // (C6(Br--O)/C6_lr(O) + C6(Br--H)/C6_lr(H)) / 2
         for (size_t nv = 0; nv < n_mon; nv++) c6_lr[fst_ind + nv] = 74.56169774397084024344;
     } else if (mon_id == "i") {
-    // FIXME This value will be set from C6 I-O and I-H. Qchem does not allow
-    // C6 calculations for only pseudopotential atoms, i.e. 2 bromide, iodide...)
-    // It will be calculated as:
-    // (C6(I--O)/C6_lr(O) + C6(I--H)/C6_lr(H)) / 2 
+        // FIXME This value will be set from C6 I-O and I-H. Qchem does not allow
+        // C6 calculations for only pseudopotential atoms, i.e. 2 bromide, iodide...)
+        // It will be calculated as:
+        // (C6(I--O)/C6_lr(O) + C6(I--H)/C6_lr(H)) / 2
         for (size_t nv = 0; nv < n_mon; nv++) c6_lr[fst_ind + nv] = 105.39445721563933883337;
     } else if (mon_id == "li") {
         for (size_t nv = 0; nv < n_mon; nv++) c6_lr[fst_ind + nv] = 3.24887148714749872914;
     } else if (mon_id == "na") {
         for (size_t nv = 0; nv < n_mon; nv++) c6_lr[fst_ind + nv] = 16.02787872333703428437;
     } else if (mon_id == "k") {
-    // FIXME This value will be set from C6 K-O and K-H. Qchem does not allow
-    // C6 calculations for only pseudopotential atoms, i.e. 2 bromide, iodide...)
-    // It will be calculated as:
-    // (C6(K--O)/C6_lr(O) + C6(K--H)/C6_lr(H)) / 2 
+        // FIXME This value will be set from C6 K-O and K-H. Qchem does not allow
+        // C6 calculations for only pseudopotential atoms, i.e. 2 bromide, iodide...)
+        // It will be calculated as:
+        // (C6(K--O)/C6_lr(O) + C6(K--H)/C6_lr(H)) / 2
         for (size_t nv = 0; nv < n_mon; nv++) c6_lr[fst_ind + nv] = 37.63136349992751547203;
     } else if (mon_id == "rb") {
-    // FIXME This value will be set from C6 Rb-O and Rb-H. Qchem does not allow
-    // C6 calculations for only pseudopotential atoms, i.e. 2 bromide, iodide...)
-    // It will be calculated as:
-    // (C6(Rb--O)/C6_lr(O) + C6(Rb--H)/C6_lr(H)) / 2 
+        // FIXME This value will be set from C6 Rb-O and Rb-H. Qchem does not allow
+        // C6 calculations for only pseudopotential atoms, i.e. 2 bromide, iodide...)
+        // It will be calculated as:
+        // (C6(Rb--O)/C6_lr(O) + C6(Rb--H)/C6_lr(H)) / 2
         for (size_t nv = 0; nv < n_mon; nv++) c6_lr[fst_ind + nv] = 49.17633137941422098718;
     } else if (mon_id == "cs") {
-    // FIXME This value will be set from C6 Cs-O and Cs-H. Qchem does not allow
-    // C6 calculations for only pseudopotential atoms, i.e. 2 bromide, iodide...)
-    // It will be calculated as:
-    // (C6(Cs--O)/C6_lr(O) + C6(Cs--H)/C6_lr(H)) / 2 
+        // FIXME This value will be set from C6 Cs-O and Cs-H. Qchem does not allow
+        // C6 calculations for only pseudopotential atoms, i.e. 2 bromide, iodide...)
+        // It will be calculated as:
+        // (C6(Cs--O)/C6_lr(O) + C6(Cs--H)/C6_lr(H)) / 2
         for (size_t nv = 0; nv < n_mon; nv++) c6_lr[fst_ind + nv] = 65.76255818916154320248;
         // BEGIN SECTION C6_LONG_RANGE
         // ==> PASTE YOUR CODE BELOW <==
@@ -1054,6 +1169,13 @@ void SetC6LongRange(std::vector<double> &c6_lr, std::string mon_id, size_t n_mon
             c6_lr[nv * natoms + fst_ind + 1] = 13.04205731316957524126;  // O
             c6_lr[nv * natoms + fst_ind + 2] = 13.04205731316957524126;  // O
         }
+    } else if (mon_id == "h4_dummy") {
+        for (size_t nv = 0; nv < n_mon; nv++) {
+            c6_lr[nv * natoms + fst_ind] = 0.00000;
+            c6_lr[nv * natoms + fst_ind + 1] = 0.00000;
+            c6_lr[nv * natoms + fst_ind + 2] = 0.00000;
+            c6_lr[nv * natoms + fst_ind + 3] = 0.00000;
+        }
     } else if (mon_id == "dummy") {
         for (size_t nv = 0; nv < n_mon; nv++) {
             c6_lr[fst_ind + nv] = 0.0;
@@ -1063,11 +1185,11 @@ void SetC6LongRange(std::vector<double> &c6_lr, std::string mon_id, size_t n_mon
             c6_lr[fst_ind + nv] = 43.09834;
         }
     } else if (mon_id == "nh3") {
-        for (size_t nv = 0; nv < n_mon; nv++) { 
-            c6_lr[nv * natoms + fst_ind] = 15.600760741363583; // A
-            c6_lr[nv * natoms + fst_ind] = 6.332641587660851; // B
-            c6_lr[nv * natoms + fst_ind] = 6.332641587660851; // B
-            c6_lr[nv * natoms + fst_ind] = 6.332641587660851; // B
+        for (size_t nv = 0; nv < n_mon; nv++) {
+            c6_lr[nv * natoms + fst_ind] = 15.600760741363583;  // A
+            c6_lr[nv * natoms + fst_ind] = 6.332641587660851;   // B
+            c6_lr[nv * natoms + fst_ind] = 6.332641587660851;   // B
+            c6_lr[nv * natoms + fst_ind] = 6.332641587660851;   // B
         }
         // END SECTION C6_LONG_RANGE
         // Water is the only monomer which C6 does not come from qchem.
@@ -1098,8 +1220,8 @@ void RedistributeVirtGrads2Real(const std::string mon, const size_t nmon, const 
 }
 
 void ChargeDerivativeForce(const std::string mon, const size_t nmon, const size_t fi_crd, const size_t fi_sites,
-                           const std::vector<double> phi, std::vector<double> &grad,
-                           const std::vector<double> chg_grad, double* crd, std::vector<double> *qdvirial) {
+                           const std::vector<double> phi, std::vector<double> &grad, const std::vector<double> chg_grad,
+                           double *crd, std::vector<double> *qdvirial) {
     // If water, extracted from patridge-schwneke paper
     if (mon == "h2o") {
         for (size_t mm = 0; mm < nmon; mm++) {
@@ -1148,119 +1270,110 @@ void ChargeDerivativeForce(const std::string mon, const size_t nmon, const size_
             }
 
             if (qdvirial != 0) {
-                std::vector<double> temp_pos = { crd[mm*1], crd[mm + nmon], crd[mm +2*nmon], crd[mm + 3*nmon], 
-                                       crd[mm+4*nmon], crd[mm+5*nmon], crd[mm+6*nmon], crd[mm+7*nmon], crd[mm+8*nmon]};
+                std::vector<double> temp_pos = {crd[mm * 1],        crd[mm + nmon],     crd[mm + 2 * nmon],
+                                                crd[mm + 3 * nmon], crd[mm + 4 * nmon], crd[mm + 5 * nmon],
+                                                crd[mm + 6 * nmon], crd[mm + 7 * nmon], crd[mm + 8 * nmon]};
 
                 std::vector<double> chgtmpnv_test((3));
                 std::vector<double> chgder_test((27));
 
-                std::vector<double> aux_data(6,0.0); // declare array to store auxillary output from dms_nasa_vir
+                std::vector<double> aux_data(6, 0.0);  // declare array to store auxillary output from dms_nasa_vir
 
-                ps::dms_nasa(0.0, 0.0, 0.0, temp_pos.data(), chgtmpnv_test.data(),chgder_test.data(), &aux_data); // get them aux data (charge derivateves with respect to internal coords)
-                     
+                ps::dms_nasa(0.0, 0.0, 0.0, temp_pos.data(), chgtmpnv_test.data(), chgder_test.data(),
+                             &aux_data);  // get them aux data (charge derivateves with respect to internal coords)
+
                 // get the charge derivatives in internal coordinates ( r12 = rOH1, r13=rOH2, cos = cos(theta))
                 double dp1dr12 = aux_data[0];  // pass data onto variables
                 double dp1dr13 = aux_data[1];
                 double dp2dr12 = aux_data[2];
-                double dp2dr13 = aux_data[3];	    
+                double dp2dr13 = aux_data[3];
                 double dp1dcos = aux_data[4];
                 double dp2dcos = aux_data[5];
-
 
                 std::vector<double> dqdr12(4, 0.0);
                 std::vector<double> dqdr13(4, 0.0);
                 std::vector<double> dqdcos(4, 0.0);
 
                 double gamma = gammaM;
-    
-                double tmp = gamma / 2.0 / ( 1.0 - gamma );
-                
+
+                double tmp = gamma / 2.0 / (1.0 - gamma);
+
                 // adding M-site contribution to the derivatives
-                dqdr12[1] = dp1dr12 + ( dp1dr12 + dp2dr12 ) * tmp;   //h1 
-                dqdr13[1] = dp1dr13 + ( dp1dr13 + dp2dr13 ) * tmp;
-                dqdcos[1] = dp1dcos + ( dp1dcos + dp2dcos ) * tmp;
-    
-                dqdr12[2] = dp2dr12 + ( dp1dr12 + dp2dr12 ) * tmp;  //h2
-                dqdr13[2] = dp2dr13 + ( dp1dr13 + dp2dr13 ) * tmp;
-                dqdcos[2] = dp2dcos + ( dp1dcos + dp2dcos ) * tmp;
-    
-                dqdr12[3] = -( dp1dr12 + dp2dr12 ) / ( 1.0 - gamma ); //M
-                dqdr13[3] = -( dp1dr13 + dp2dr13 ) / ( 1.0 - gamma );
-                dqdcos[3] = -( dp1dcos + dp2dcos ) / ( 1.0 - gamma );
+                dqdr12[1] = dp1dr12 + (dp1dr12 + dp2dr12) * tmp;  // h1
+                dqdr13[1] = dp1dr13 + (dp1dr13 + dp2dr13) * tmp;
+                dqdcos[1] = dp1dcos + (dp1dcos + dp2dcos) * tmp;
 
+                dqdr12[2] = dp2dr12 + (dp1dr12 + dp2dr12) * tmp;  // h2
+                dqdr13[2] = dp2dr13 + (dp1dr13 + dp2dr13) * tmp;
+                dqdcos[2] = dp2dcos + (dp1dcos + dp2dcos) * tmp;
 
-                for (int ii =0; ii < 4; ii++) {   // loop over all sites
- 
+                dqdr12[3] = -(dp1dr12 + dp2dr12) / (1.0 - gamma);  // M
+                dqdr13[3] = -(dp1dr13 + dp2dr13) / (1.0 - gamma);
+                dqdcos[3] = -(dp1dcos + dp2dcos) / (1.0 - gamma);
+
+                for (int ii = 0; ii < 4; ii++) {  // loop over all sites
+
                     // get the electrostatic potential on that site
                     double vtmp;
 
-                    if ( ii == 1 ){
-                        vtmp = phi[sphi + 1]; //h1
+                    if (ii == 1) {
+                        vtmp = phi[sphi + 1];  // h1
                     }
 
-                    if ( ii == 2 ){
-                        vtmp = phi[sphi + 2];  //h2
+                    if (ii == 2) {
+                        vtmp = phi[sphi + 2];  // h2
                     }
 
-                    if ( ii == 3 ){
-                        vtmp = phi[sphi + 3]; //M
+                    if (ii == 3) {
+                        vtmp = phi[sphi + 3];  // M
                     }
 
+                    for (int l = 0; l < 3; l++) {  // double loop for charge derivatives with respect to each internal
+                                                   // bond coordinate (ie r12 and r13) for each atom.
 
-
-                    for (int l = 0; l < 3; l++){ // double loop for charge derivatives with respect to each internal bond coordinate (ie r12 and r13) for each atom.
-
-                        for (int m=l+1;m<4;m++) {    
-            
+                        for (int m = l + 1; m < 4; m++) {
                             double rx;
                             double ry;
                             double rz;
                             double dqdr_tmp;
                             double prefac;
-            
+
                             // get the distances and charge derivatives with respect to r12 and r13 (the OH bonds)
-                            if ( (l == 0) && (m == 1) ) {
-            
+                            if ((l == 0) && (m == 1)) {
                                 dqdr_tmp = dqdr12[ii];
-            
+
                                 rx = temp_pos[0] - temp_pos[3];
                                 ry = temp_pos[1] - temp_pos[4];
                                 rz = temp_pos[2] - temp_pos[5];
                                 prefac = 1.0;
 
-                            } else if ( (l == 0) && (m == 2) ) {
-            
+                            } else if ((l == 0) && (m == 2)) {
                                 dqdr_tmp = dqdr13[ii];
-            
+
                                 rx = temp_pos[0] - temp_pos[6];
                                 ry = temp_pos[1] - temp_pos[7];
                                 rz = temp_pos[2] - temp_pos[8];
                                 prefac = 1.0;
-            
+
                             } else {
-
                                 prefac = 0.0;
-
                             }
 
-  
-                            double rjk = std::sqrt( rx * rx + ry * ry + rz * rz );
+                            double rjk = std::sqrt(rx * rx + ry * ry + rz * rz);
 
+                            // add to virial
 
-			    // add to virial
-            
-                            (*qdvirial)[0] -=  vtmp * dqdr_tmp * rx * rx / rjk*prefac*constants::COULOMB;
-                            (*qdvirial)[1] -=  vtmp * dqdr_tmp * rx * ry / rjk*prefac*constants::COULOMB;
-                            (*qdvirial)[2] -=  vtmp * dqdr_tmp * rx * rz / rjk*prefac*constants::COULOMB;
-            
-                            (*qdvirial)[4] -=  vtmp * dqdr_tmp * ry * ry / rjk*prefac*constants::COULOMB;
-                            (*qdvirial)[5] -=  vtmp * dqdr_tmp * ry * rz / rjk*prefac*constants::COULOMB;
-            
-                            (*qdvirial)[8] -=  vtmp * dqdr_tmp * rz * rz / rjk*prefac*constants::COULOMB;
+                            (*qdvirial)[0] -= vtmp * dqdr_tmp * rx * rx / rjk * prefac * constants::COULOMB;
+                            (*qdvirial)[1] -= vtmp * dqdr_tmp * rx * ry / rjk * prefac * constants::COULOMB;
+                            (*qdvirial)[2] -= vtmp * dqdr_tmp * rx * rz / rjk * prefac * constants::COULOMB;
 
+                            (*qdvirial)[4] -= vtmp * dqdr_tmp * ry * ry / rjk * prefac * constants::COULOMB;
+                            (*qdvirial)[5] -= vtmp * dqdr_tmp * ry * rz / rjk * prefac * constants::COULOMB;
 
-                        } // m
-                    } // l
+                            (*qdvirial)[8] -= vtmp * dqdr_tmp * rz * rz / rjk * prefac * constants::COULOMB;
+
+                        }  // m
+                    }      // l
 
                     // angular terms
                     double rx1 = temp_pos[0] - temp_pos[3];
@@ -1275,57 +1388,42 @@ void ChargeDerivativeForce(const std::string mon, const size_t nmon, const size_
                     double ry3 = temp_pos[4] - temp_pos[7];
                     double rz3 = temp_pos[5] - temp_pos[8];
 
+                    double r1 = std::sqrt(rx1 * rx1 + ry1 * ry1 + rz1 * rz1);
+                    double r2 = std::sqrt(rx2 * rx2 + ry2 * ry2 + rz2 * rz2);
+                    double r3 = std::sqrt(rx3 * rx3 + ry3 * ry3 + rz3 * rz3);
 
-                    double r1 = std::sqrt( rx1 * rx1 + ry1 * ry1 + rz1 * rz1 );
-                    double r2 = std::sqrt( rx2 * rx2 + ry2 * ry2 + rz2 * rz2 );
-                    double r3 = std::sqrt( rx3 * rx3 + ry3 * ry3 + rz3 * rz3 );
-                     
                     double rdot = rx1 * rx2 + ry1 * ry2 + rz1 * rz2;
-                    double cost = rdot / ( r1 * r2 );
-                    
-                    double dcosdr12 = ( r1 - r2 * cost ) / r1 / r2;
-                    double dcosdr13 = ( r2 - r1 * cost ) / r1 / r2;
+                    double cost = rdot / (r1 * r2);
+
+                    double dcosdr12 = (r1 - r2 * cost) / r1 / r2;
+                    double dcosdr13 = (r2 - r1 * cost) / r1 / r2;
                     double dcosdr23 = -r3 / r1 / r2;
 
                     // chain rule the cosine to bond coords
-                    double dcostmp1 = dcosdr12 * rx1 * rx1 / r1 
-                            + dcosdr13 * rx2 * rx2 / r2 
-                            + dcosdr23 * rx3 * rx3 / r3;
-                    double dcostmp2 = dcosdr12 * rx1 * ry1 / r1 
-                            + dcosdr13 * rx2 * ry2 / r2 
-                            + dcosdr23 * rx3 * ry3 / r3;
-                    double dcostmp3 = dcosdr12 * rx1 * rz1 / r1 
-                            + dcosdr13 * rx2 * rz2 / r2 
-                            + dcosdr23 * rx3 * rz3 / r3;
-    
-                    double dcostmp5 = dcosdr12 * ry1 * ry1 / r1 
-                            + dcosdr13 * ry2 * ry2 / r2 
-                            + dcosdr23 * ry3 * ry3 / r3;
-                    double dcostmp6 = dcosdr12 * ry1 * rz1 / r1 
-                            + dcosdr13 * ry2 * rz2 / r2 
-                            + dcosdr23 * ry3 * rz3 / r3;
-    
-                    double dcostmp9 = dcosdr12 * rz1 * rz1 / r1 
-                            + dcosdr13 * rz2 * rz2 / r2 
-                            + dcosdr23 * rz3 * rz3 / r3;
+                    double dcostmp1 = dcosdr12 * rx1 * rx1 / r1 + dcosdr13 * rx2 * rx2 / r2 + dcosdr23 * rx3 * rx3 / r3;
+                    double dcostmp2 = dcosdr12 * rx1 * ry1 / r1 + dcosdr13 * rx2 * ry2 / r2 + dcosdr23 * rx3 * ry3 / r3;
+                    double dcostmp3 = dcosdr12 * rx1 * rz1 / r1 + dcosdr13 * rx2 * rz2 / r2 + dcosdr23 * rx3 * rz3 / r3;
+
+                    double dcostmp5 = dcosdr12 * ry1 * ry1 / r1 + dcosdr13 * ry2 * ry2 / r2 + dcosdr23 * ry3 * ry3 / r3;
+                    double dcostmp6 = dcosdr12 * ry1 * rz1 / r1 + dcosdr13 * ry2 * rz2 / r2 + dcosdr23 * ry3 * rz3 / r3;
+
+                    double dcostmp9 = dcosdr12 * rz1 * rz1 / r1 + dcosdr13 * rz2 * rz2 / r2 + dcosdr23 * rz3 * rz3 / r3;
 
                     // add to virial
-                    (*qdvirial)[0] -= dqdcos[ii] * dcostmp1*vtmp*constants::COULOMB;
-                    (*qdvirial)[1] -= dqdcos[ii] * dcostmp2*vtmp*constants::COULOMB;
-                    (*qdvirial)[2] -= dqdcos[ii] * dcostmp3*vtmp*constants::COULOMB;
-                    (*qdvirial)[4] -= dqdcos[ii] * dcostmp5*vtmp*constants::COULOMB;
-                    (*qdvirial)[5] -= dqdcos[ii] * dcostmp6*vtmp*constants::COULOMB;
-                    (*qdvirial)[8] -= dqdcos[ii] * dcostmp9*vtmp*constants::COULOMB;
+                    (*qdvirial)[0] -= dqdcos[ii] * dcostmp1 * vtmp * constants::COULOMB;
+                    (*qdvirial)[1] -= dqdcos[ii] * dcostmp2 * vtmp * constants::COULOMB;
+                    (*qdvirial)[2] -= dqdcos[ii] * dcostmp3 * vtmp * constants::COULOMB;
+                    (*qdvirial)[4] -= dqdcos[ii] * dcostmp5 * vtmp * constants::COULOMB;
+                    (*qdvirial)[5] -= dqdcos[ii] * dcostmp6 * vtmp * constants::COULOMB;
+                    (*qdvirial)[8] -= dqdcos[ii] * dcostmp9 * vtmp * constants::COULOMB;
 
                     (*qdvirial)[3] = (*qdvirial)[1];
                     (*qdvirial)[6] = (*qdvirial)[2];
                     (*qdvirial)[7] = (*qdvirial)[5];
 
-                } // ii
+                }  // ii
 
-
-            } // end virial
-
+            }  // end virial
         }
     }
 }

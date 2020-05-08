@@ -111,7 +111,7 @@ before_script:
     -DCMAKE_CXX_FLAGS="-O0 ${CXX_FLAGS}"
     -DUSE_OPENMP:BOOL=FALSE
   - cd build
-  - travis_wait 60 make VERBOSE=1 -j 4
+  - travis_wait 60 make VERBOSE=1 -j 2
   - make install
   - cd .. 
   - mv install install_noOpenMP
@@ -126,12 +126,13 @@ before_script:
     -DCMAKE_CXX_FLAGS="-O0 ${CXX_FLAGS}"
     -DUSE_OPENMP:BOOL=TRUE
   - cd build
-  - travis_wait 60 make VERBOSE=1 -j 4
+  - travis_wait 60 make VERBOSE=1 -j 2
   - make install
   - cd ..
   - mv install install_OpenMP
 
 script:
+  - export OMP_NUM_THREADS=1
   - cp -r install_noOpenMP install
   - cd tests
   - ./run_tests.sh
@@ -142,7 +143,7 @@ script:
   - cd tests
   - ./run_tests.sh
   - cd ../
-  - cd build/MBX-core-prefix/src/MBX-core-build/tests/unittests
+  - cd install/bin/unittests
   - ctest
 
 notifications:

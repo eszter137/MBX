@@ -1874,13 +1874,13 @@ struct MPITypes {
 };
 
 template <>
-MPITypes<float>::MPITypes() : realType_(MPI_FLOAT), complexType_(MPI_C_COMPLEX) {}
+inline MPITypes<float>::MPITypes() : realType_(MPI_FLOAT), complexType_(MPI_C_COMPLEX) {}
 
 template <>
-MPITypes<double>::MPITypes() : realType_(MPI_DOUBLE), complexType_(MPI_C_DOUBLE_COMPLEX) {}
+inline MPITypes<double>::MPITypes() : realType_(MPI_DOUBLE), complexType_(MPI_C_DOUBLE_COMPLEX) {}
 
 template <>
-MPITypes<long double>::MPITypes() : realType_(MPI_LONG_DOUBLE), complexType_(MPI_C_LONG_DOUBLE_COMPLEX) {}
+inline MPITypes<long double>::MPITypes() : realType_(MPI_LONG_DOUBLE), complexType_(MPI_C_LONG_DOUBLE_COMPLEX) {}
 
 /*!
  * \brief The MPIWrapper struct is a lightweight C++ wrapper around the C MPI functions.  Its main
@@ -2038,7 +2038,12 @@ std::ostream& operator<<(std::ostream& os, const std::unique_ptr<MPIWrapper<Real
 }  // Namespace helpme
 #endif  // Header guard
 #else
-typedef struct ompi_communicator_t *MPI_Comm;
+
+#ifndef MPI_VERSION
+//typedef struct ompi_communicator_t *MPI_Comm;
+typedef int MPI_Comm;
+#endif
+
 #endif
 // original file: ../src/powers.h
 
@@ -3572,7 +3577,9 @@ class PMEInstance {
                     case (NodeOrder::ZYX):
                         myNodeRankA_ = mpiCommunicator_->myRank_ % numNodesA;
                         myNodeRankB_ = (mpiCommunicator_->myRank_ % (numNodesB * numNodesA)) / numNodesA;
-                        myNodeRankC_ = mpiCommunicator_->myRank_ / (numNodesB * numNodesA);
+                        myNodeRankC_ = mpiCommunicator_->myRank_ / (numNodesB * numNodesA);			
+			// std::cout << "myRank_= " << mpiCommunicator_->myRank_ << "  myNodeRankABC= " <<
+			//   myNodeRankA_ << " " << myNodeRankB_ << " " << myNodeRankC_ << std::endl;
                         mpiCommunicatorA_ =
                             mpiCommunicator_->split(myNodeRankC_ * numNodesB + myNodeRankB_, myNodeRankA_);
                         mpiCommunicatorB_ =
@@ -3607,6 +3614,7 @@ class PMEInstance {
             size_t scratchSize;
             int gridPaddingA = 0, gridPaddingB = 0, gridPaddingC = 0;
             if (algorithm == AlgorithmType::CompressedPME) {
+	      //	      std::cout << "algorithm= CompressedPME" << std::endl;
                 gridDimensionA_ = numNodesA * std::ceil(dimA / (float)numNodesA);
                 gridDimensionB_ = numNodesB * std::ceil(dimB / (float)numNodesB);
                 gridDimensionC_ = numNodesC * std::ceil(dimC / (float)numNodesC);
@@ -3637,6 +3645,7 @@ class PMEInstance {
                 scratchSize = (size_t)std::max(myGridDimensionA_, numKSumTermsA) *
                               std::max(myGridDimensionB_, numKSumTermsB) * std::max(myGridDimensionC_, numKSumTermsC);
             } else {
+	      //	      std::cout << "algorithm= PME" << std::endl;
                 gridDimensionA_ = findGridSize(dimA, {numNodesA_});
                 gridDimensionB_ = findGridSize(dimB, {numNodesB_ * numNodesC_});
                 gridDimensionC_ = findGridSize(dimC, {numNodesA_ * numNodesC_, numNodesB_ * numNodesC_});
@@ -3666,6 +3675,12 @@ class PMEInstance {
                 compressionCoefficientsC_ = RealMat();
                 scratchSize = (size_t)myGridDimensionC_ * myComplexGridDimensionA_ * myGridDimensionB_;
             }
+	    
+	    // std::cout << "  myNodeRankABC= " <<
+	    //   myNodeRankA_ << " " << myNodeRankB_ << " " << myNodeRankC_ <<
+	    //   "  myGridDimension_= " << myGridDimensionA_ << " " << myGridDimensionB_ << " " <<
+	    //   myGridDimensionC_ << "  myFirstGridPoint_= " << myFirstGridPointA_ << " " <<
+	    //   myFirstGridPointB_ << " " << myFirstGridPointC_ << std::endl;
 
             // Grid iterators to correctly wrap the grid when using splines.
             gridIteratorA_ = makeGridIterator(gridDimensionA_, myFirstGridPointA_,
@@ -3937,6 +3952,10 @@ class PMEInstance {
                         gridAtomList_[cStartingGridPoint].emplace(startingGridPoint, atom);
                         ++myNumAtoms;
                     }
+		    // if(myFirstGridPointC_ == 0)
+		    //   std::cout << "atom= " << atom << "  atomCoords= "  << atomCoords[0] << " " << atomCoords[1] <<
+		    // 	" " << atomCoords[2] << "  StartingGridPoint= " << aStartingGridPoint << " " <<
+		    // 	bStartingGridPoint << " " << cStartingGridPoint << "  myNumAtoms= " << myNumAtoms << std::endl;
                 }
             }
             numAtomsPerThread_[threadID] = myNumAtoms;
