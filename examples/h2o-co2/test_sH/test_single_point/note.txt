@@ -1,0 +1,1 @@
+./run.sh sH_ch4_cell2x2x2_rand0_ase.nrg 2x2x2.json > sH_ch4_cell2x2x2_rand0_ase_mbx.txt

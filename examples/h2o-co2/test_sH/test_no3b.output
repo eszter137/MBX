@@ -1,0 +1,40 @@
+$ ./test_no3b 
+**WARNING** "ff_mons" is not defined in json file. Using empty list.
+**WARNING** "ignore_1b_poly" is not defined in json file. Using empty list.
+**WARNING** "connectivity_file" is not defined in json file. Not using 1B TTM-nrg.
+ System initialized.
+
+
+Program received signal SIGSEGV: Segmentation fault - invalid memory reference.
+
+Backtrace for this error:
+#0  0x7f88929082ed in ???
+#1  0x7f8892907503 in ???
+#2  0x7f889253af1f in ???
+#3  0x7f8892590f10 in ???
+#4  0x7f88925930fb in ???
+#5  0x7f8892206297 in ???
+#6  0x7f8892e70c79 in _ZN9__gnu_cxx13new_allocatorIdE8allocateEmPKv
+	at /usr/include/c++/7/ext/new_allocator.h:111
+#7  0x7f8892e67896 in _ZNSt16allocator_traitsISaIdEE8allocateERS0_m
+	at /usr/include/c++/7/bits/alloc_traits.h:436
+#8  0x7f8892e60f4d in _ZNSt12_Vector_baseIdSaIdEE11_M_allocateEm
+	at /usr/include/c++/7/bits/stl_vector.h:172
+#9  0x7f8892e60d8e in _ZNSt12_Vector_baseIdSaIdEE17_M_create_storageEm
+	at /usr/include/c++/7/bits/stl_vector.h:187
+#10  0x7f8892e575be in _ZNSt12_Vector_baseIdSaIdEEC2EmRKS0_
+	at /usr/include/c++/7/bits/stl_vector.h:138
+#11  0x7f8892e51550 in _ZNSt6vectorIdSaIdEEC2ERKS1_
+	at /usr/include/c++/7/bits/stl_vector.h:328
+#12  0x7f8892e49f2c in _ZN6bblock6System5Get3BEbb
+	at /home/es732/programs/MBX/src/bblock/system.cpp:1979
+#13  0x7f8892e443c2 in _ZN6bblock6System6EnergyEb
+	at /home/es732/programs/MBX/src/bblock/system.cpp:1262
+#14  0x7f8892ea68a7 in get_energy_pbc_
+	at /home/es732/programs/MBX/src/bblock/external_call.cpp:122
+#15  0x5621b8a2e0dc in test
+	at /home/es732/programs/MBX/examples/h2o-co2/test_sH/test_no3b.f90:120
+#16  0x5621b8a2e743 in main
+	at /home/es732/programs/MBX/examples/h2o-co2/test_sH/test_no3b.f90:149
+Segmentation fault (core dumped)
+
