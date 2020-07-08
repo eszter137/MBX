@@ -1,0 +1,20 @@
+-- New Job --
+/home/es732/test_MBX/single_point/pbc/test_fd/virial/fIIh/pressure_2GPa
+Traceback (most recent call last):
+  File "virial_test.py", line 74, in <module>
+    " json_file="+this_version+".json",param_str="")
+  File "/home/es732/miniconda3/envs/mbx-quippy/lib/python2.7/site-packages/quippy/potential.py", line 197, in __init__
+    error=error)
+  File "/home/es732/miniconda3/envs/mbx-quippy/lib/python2.7/site-packages/quippy/oo_fortran.py", line 859, in <lambda>
+    init = lambda self, *args, **kwargs: FortranDerivedType.__init__(self, *args, **kwargs)
+  File "/home/es732/miniconda3/envs/mbx-quippy/lib/python2.7/site-packages/quippy/oo_fortran.py", line 357, in __init__
+    self._fpointer = self._runinterface('__init__', *args, **kwargs)
+  File "/home/es732/miniconda3/envs/mbx-quippy/lib/python2.7/site-packages/quippy/oo_fortran.py", line 666, in _runinterface
+    return routine(self, *args, **kwargs)
+  File "/home/es732/miniconda3/envs/mbx-quippy/lib/python2.7/site-packages/quippy/oo_fortran.py", line 856, in <lambda>
+    wrapmethod = lambda name: lambda self, *args, **kwargs: self._runroutine(name, *args, **kwargs)
+  File "/home/es732/miniconda3/envs/mbx-quippy/lib/python2.7/site-packages/quippy/oo_fortran.py", line 574, in _runroutine
+    res = fobj(*newargs, **newkwargs)
+RuntimeError: Traceback (most recent call last)
+  File "/home/es732/QUIP_MBX/src/Potentials/IPModel_MBXPBC.f95", line 196 kind unspecified
+    ERROR: specified json file is not in the directory!                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
