@@ -1,0 +1,6 @@
+$ /home/es732/Programs/test_new_MBX/MBX/install/bin/main/single_point  h2o-co2.nrg h2o-co2.json 
+**WARNING** "ff_mons" is not defined in json file. Using empty list.
+**WARNING** "ignore_1b_poly" is not defined in json file. Using empty list.
+**WARNING** "connectivity_file" is not defined in json file. Not using 1B TTM-nrg.
+Energy= -1.4052081417e+01
+
