@@ -1,0 +1,2 @@
+cp ~/Programs/test_new_MBX/MBX/examples/h2o-co2/use_mbx_with_fortran/input.xyz h2o-co2.xyz
+
