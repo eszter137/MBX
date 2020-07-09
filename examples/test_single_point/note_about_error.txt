@@ -1,0 +1,9 @@
+#Running the following simple test, the output was:
+$/home/es732/Programs/test_new_MBX/MBX/install/bin/main/single_point phase_clathrate_2x2x2.nrg 2x2x2.json 
+**WARNING** "ff_mons" is not defined in json file. Using empty list.
+**WARNING** "ignore_1b_poly" is not defined in json file. Using empty list.
+**WARNING** "connectivity_file" is not defined in json file. Not using 1B TTM-nrg.
+*** glibc detected *** /home/es732/Programs/test_new_MBX/MBX/install/bin/main/single_point: double free or corruption (!prev): 0x00007f9b68002260 ***
+======= Backtrace: =========
+/lib/x86_64-linux-gnu/libc.so.6(+0xAborted
+
