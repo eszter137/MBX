@@ -42,6 +42,7 @@ SOFTWARE WILL NOT INFRINGE ANY PATENT, TRADEMARK OR OTHER RIGHTS.
 #include <iostream>
 #include <fstream>
 #include <memory>
+#include <unordered_map>
 
 // Tools
 #include "kdtree/nanoflann.hpp"
@@ -50,8 +51,13 @@ SOFTWARE WILL NOT INFRINGE ANY PATENT, TRADEMARK OR OTHER RIGHTS.
 #include "bblock/sys_tools.h"
 #include "tools/definitions.h"
 #include "tools/custom_exceptions.h"
+#include "tools/math_tools.h"
+#include "potential/force_field/connectivity.h"
+#include "io_tools/read_connectivity.h"
 
 // Potential
+// Force Field
+#include "potential/force_field/energyff.h"
 // 1B
 #include "potential/1b/energy1b.h"
 // 2B
@@ -138,39 +144,39 @@ class System {
      */
     std::vector<size_t> GetMonNumAt();
 
-// FIXME As for today, these functions are not used. // MRR 20191022
-// Will need to activate them and use them whenever we need them for MB-Spec
-//    /**
-//     * Gets the molecular dipoles for the system.
-//     * @param[out] mu_perm Permanent dipole moments
-//     * @param[out] mu_ind Induced dipole moments
-//     */
-//    void GetMolecularDipoles(std::vector<double> &mu_perm, std::vector<double> &mu_ind);
-//
-//    /**
-//     * Gets the point dipole moments in each atom.
-//     * @param[out] mu_perm Permanent dipole moments
-//     * @param[out] mu_ind Induced dipole moments
-//     */
-//    void GetDipoles(std::vector<double> &mu_perm, std::vector<double> &mu_ind);
-//
-//    /**
-//     * Gets the total dipole moment for the system.
-//     * @param[out] mu_perm Permanent dipole moments
-//     * @param[out] mu_ind Induced dipole moments
-//     * @param[out] mu_tot Total dipole moment
-//     */
-//    void GetTotalDipole(std::vector<double> &mu_perm, std::vector<double> &mu_ind, std::vector<double> &mu_tot);
-//
-//    /**
-//     * Returns the charge derivatives for the whole system
-//     */
-//    std::vector<double> GetChargeDerivativesOHH();
-//
-//    /**
-//     * Returns the charge derivatives for the whole system
-//     */
-//    std::vector<double> GetChargeDerivatives();
+    // FIXME As for today, these functions are not used. // MRR 20191022
+    // Will need to activate them and use them whenever we need them for MB-Spec
+    //    /**
+    //     * Gets the molecular dipoles for the system.
+    //     * @param[out] mu_perm Permanent dipole moments
+    //     * @param[out] mu_ind Induced dipole moments
+    //     */
+    //    void GetMolecularDipoles(std::vector<double> &mu_perm, std::vector<double> &mu_ind);
+    //
+    //    /**
+    //     * Gets the point dipole moments in each atom.
+    //     * @param[out] mu_perm Permanent dipole moments
+    //     * @param[out] mu_ind Induced dipole moments
+    //     */
+    //    void GetDipoles(std::vector<double> &mu_perm, std::vector<double> &mu_ind);
+    //
+    //    /**
+    //     * Gets the total dipole moment for the system.
+    //     * @param[out] mu_perm Permanent dipole moments
+    //     * @param[out] mu_ind Induced dipole moments
+    //     * @param[out] mu_tot Total dipole moment
+    //     */
+    //    void GetTotalDipole(std::vector<double> &mu_perm, std::vector<double> &mu_ind, std::vector<double> &mu_tot);
+    //
+    //    /**
+    //     * Returns the charge derivatives for the whole system
+    //     */
+    //    std::vector<double> GetChargeDerivativesOHH();
+    //
+    //    /**
+    //     * Returns the charge derivatives for the whole system
+    //     */
+    //    std::vector<double> GetChargeDerivatives();
 
     /**
      * Gets the position of the first site of monomer n in the atoms vector
@@ -329,6 +335,18 @@ class System {
     std::vector<std::pair<std::string, std::string> > GetTTMnrgPairs();
 
     /**
+     * Gets the classical force field monomers vector.
+     * @return Vector of pairs of the monomers for which classical ff will be calculated
+     */
+    std::vector<std::string> GetFFMons();
+
+    /**
+     * Gets the whole vector for which the 1b polynomials won't be calculated
+     * @return Vector of string vectors with the monomers to be ignored
+     */
+    std::vector<std::string> Get1bIgnorePoly();
+
+    /**
      * Gets the whole vector for which the 2b polynomials won't be calculated
      * @return Vector of string vectors with the pairs to be ignored
      */
@@ -404,7 +422,6 @@ class System {
      */
     void GetEwaldParamsDispersion(double &alpha, double &grid_density, size_t &spline_order);
 
-
     /////////////////////////////////////////////////////////////////////////////
     // Modifiers ////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////
@@ -436,10 +453,14 @@ class System {
      * @param[in] id Is a string that contains the identity of the monomer
      * @warning The monomer coordinates and atoms must be in the same order
      * as the database.
+     * @param[in] islocal Is an optional int that indicates whether a monomer
+     * is local or ghost within a LAMMPS sub-domain
+     * @warning The monomer coordinates and atoms must be in the same order
+     * as the database.
      * The id must also match with the database.
      * Please read the documentation carefully.
      */
-    void AddMonomer(std::vector<double> xyz, std::vector<std::string> atoms, std::string id);
+    void AddMonomer(std::vector<double> xyz, std::vector<std::string> atoms, std::string id, size_t islocal = 1);
 
     /**
      * Adds a molecule to the system. A molecule, in the context of this
@@ -453,6 +474,12 @@ class System {
     void AddMolecule(std::vector<size_t> molec);
 
     /**
+     * Adds a monomer that will use the classical force field
+     * @param[in] mon1 Is the id of the monomer
+     **/
+    void AddFFMon(std::string mon);
+
+    /**
      * Adds a pair that will use TTM-nrg instead of MB-nrg
      * @param[in] mon1 Is the id of the first monomer
      * @param[in] mon2 Is the id of the second monomer
@@ -460,10 +487,28 @@ class System {
     void AddTTMnrgPair(std::string mon1, std::string mon2);
 
     /**
+     * Sets the monomer vector that will use classical ff as a whole. Will overwrite the previous one.
+     * @param[in] ff_mons Vector of monomers for which classical forcefield energy will be calculated
+     */
+    void SetFFMons(std::vector<std::string> ff_mons);
+
+    /**
      * Sets the TTM pairs vector as a whole. Will overwrite the previous one.
      * @param[in] ttm_pairs Vector of pairs of the monomer pairs for which buckingham will be calculated
      */
     void SetTTMnrgPairs(std::vector<std::pair<std::string, std::string> > ttm_pairs);
+
+    /**
+     * Adds a pair that will be ignored in the 1b polynomials
+     * @param[in] mon Is the id of the monomer
+     */
+    void Add1bIgnorePoly(std::string mon);
+
+    /**
+     * Sets the whole vector for which the 1b polynomials won't be calculated
+     * @param[in] ignore_1b Vector of strings with the monomers to be ignored
+     */
+    void Set1bIgnorePoly(std::vector<std::string> ignore_1b);
 
     /**
      * Adds a pair that will be ignored in the 2b polynomials
@@ -505,6 +550,12 @@ class System {
      * @param[in] json_file Is the json formatted file with the system specifications
      **/
     void SetUpFromJson(char *json_file = 0);
+
+    /**
+     * Sets up the json configuration through a string.
+     * @param[in] json_text Literal string with the json configuration
+     **/
+    void SetUpFromJson(std::string json_text);
 
     /**
      * Sets up all the parameters that are specified in a json object
@@ -621,6 +672,28 @@ to be the same.
      * @param[in] spline_order Order of the splines used for interpolation
      */
     void SetEwaldDispersion(double alpha, double grid_density, int spline_order);
+  
+    /**
+     * Sets MPI environment from driver code
+     * @param[in] comm is MPI communicator
+     * @param[in] nx is # of processors along x-axis (a axis)
+     * @param[in] ny is # of processors along y-axis (b axis)
+     * @param[in] nz is # of processors along z-axis (c axis)
+     */
+    void SetMPI(MPI_Comm comm, int nx, int ny, int nz);
+  
+    /**
+     * Interface for driver to check if MPI environment initialized
+     * @param[out] 1 for initialized / -1 for not initialized / -2 for not enabled
+     */
+    int TestMPI();
+
+    /**
+     * @param[in] connectivity_map A map with monomer id as values and
+     * connectivity objects for keys
+     */
+    void SetConnectivity(std::unordered_map<std::string, eff::Conn> connectivity_map);
+    // static void SetConnectivity(std::unordered_map<std::string, eff::Conn> connectivity_map);
 
     /////////////////////////////////////////////////////////////////////////////
     // Energy Functions /////////////////////////////////////////////////////////
@@ -647,14 +720,25 @@ to be the same.
     double OneBodyEnergy(bool do_grads);
 
     /**
+     * Obtains the classic potential energy. This is the sum of the bonds,
+     * angles, dihedral, and inversion potential energies.
+     * @param[in] do_grads If true, the gradients will be computed. Otherwise,
+     * the gradient calculation will not be performed
+     * @return the classic potential of the system
+     */
+    double ClassicPotential(bool do_grads);
+
+    /**
      * Obtains the two-body energy. This is the sum of all two-body
      * polynomials and the two-body dispersion.
      * Gradients will be ONLY for the two-body part.
      * @param[in] do_grads If true, the gradients will be computed. Otherwise,
      * the gradient calculation will not be performed
+     * @param[in] use_ghost If true, include ghost monomers in calculation. Otherwise,
+     * only local monomers included (default)
      * @return Two-body energy of the system
      */
-    double TwoBodyEnergy(bool do_grads);
+    double TwoBodyEnergy(bool do_grads, bool use_ghost = 0);
 
     /**
      * Obtains the three-body energy. This is the sum of all the 3B
@@ -662,9 +746,11 @@ to be the same.
      * Gradients will be ONLY for the three-body part.
      * @param[in] do_grads If true, the gradients will be computed. Otherwise,
      * the gradient calculation will not be performed
+     * @param[in] use_ghost If true, include ghost monomers in calculation. Otherwise,
+     * only local monomers included (default)
      * @return Three-body energy of the system
      */
-    double ThreeBodyEnergy(bool do_grads);
+    double ThreeBodyEnergy(bool do_grads, bool use_ghost = 0);
 
     /**
      * Obtains the electrostatic energy. This is the sum of the permanent
@@ -681,18 +767,29 @@ to be the same.
      * Gradients will be ONLY for the dispersion part.
      * @param[in] do_grads If true, the gradients will be computed. Otherwise,
      * the gradient calculation will not be performed
+     * @param[in] use_ghost If true, then ghost monomers present
      * @return Dispersion energy of the system
      */
-    double Dispersion(bool do_grads);
+     double Dispersion(bool do_grads, bool use_ghost = 0);
+  
+    /**
+     * Obtains only the k-space dispersion energy for the whole system.
+     * Gradients will be ONLY for the dispersion part.
+     * @param[in] do_grads If true, the gradients will be computed. Otherwise,
+     * the gradient calculation will not be performed
+     * @return Dispersion energy of the system
+     */
+     double DispersionPME(bool do_grads, bool use_ghost = 0);
 
     /**
      * Obtains the buckingham energy for the whole system.
      * Gradients will be ONLY for the dispersion part.
      * @param[in] do_grads If true, the gradients will be computed. Otherwise,
+     * @param[in] use_ghost If true, then ghost logic applied
      * the gradient calculation will not be performed
      * @return Buckingham energy of the system
      */
-    double Buckingham(bool do_grads);
+    double Buckingham(bool do_grads, bool use_ghost = 0);
 
    private:
     /**
@@ -705,7 +802,7 @@ to be the same.
      * @param[in] istart Minimum index of i
      * @param[in] iend Maximum index (iend not included) of index i
      */
-    void AddClusters(size_t nmax, double cutoff, size_t istart, size_t iend);
+    void AddClusters(size_t nmax, double cutoff, size_t istart, size_t iend, bool use_ghost = false);
 
     /**
      * Fills the dimers_(i,j) and/or trimers_(i,j,k) vectors, with
@@ -718,7 +815,8 @@ to be the same.
      * @param[in] iend Maximum index (iend not included) of index i
      * @return Vector of size_t with dimention nclusters * nmax
      */
-    std::vector<size_t> AddClustersParallel(size_t nmax, double cutoff, size_t istart, size_t iend);
+    std::vector<size_t> AddClustersParallel(size_t nmax, double cutoff, size_t istart, size_t iend,
+                                            bool use_ghost = false);
 
     /**
      * Fills in the monomer information of the monomers that have been
@@ -763,22 +861,35 @@ to be the same.
     double Get1B(bool do_grads);
 
     /**
+     * Private function to internally get the 1b force field energy.
+     * Gradients of the system will be updated.
+     * @param[in] do_grads Boolean. If true, gradients will be computed.
+     * If false, gradients won't be commputed
+     * @return One-body classical energy of the system
+     */
+    double GetFF(bool do_grads);
+
+    /**
      * Private function to internally get the 2b energy.
      * Gradients of the system will be updated.
      * @param[in] do_grads Boolean. If true, gradients will be computed.
      * If false, gradients won't be computed.
+     * @param[in] use_ghost Boolean. If true, include ghost monomers in calculation. Otherwise,
+     * only local monomers included (default)
      * @return  Two-body energy of the system
      */
-    double Get2B(bool do_grads);
+    double Get2B(bool do_grads, bool use_ghost = 0);
 
     /**
      * Private function to internally get the 3b energy.
      * Gradients of the system will be updated.
      * @param[in] do_grads Boolean. If true, gradients will be computed.
      * If false, gradients won't be computed.
+     * @param[in] use_ghost Boolean. If true, include ghost monomers in calculation. Otherwise,
+     * only local monomers included (default)
      * @return  Three-body energy of the system
      */
-    double Get3B(bool do_grads);
+    double Get3B(bool do_grads, bool use_ghost = 0);
 
     /**
      * Private function to internally get the electrostatic energy.
@@ -794,18 +905,33 @@ to be the same.
      * Gradients of the system will be updated.
      * @param[in] do_grads Boolean. If true, gradients will be computed.
      * If false, gradients won't be computed.
+     * @param[in] use_ghost Boolean. If true, include ghost monomers in calculation. Otherwise,
+     * only local monomers included (default)
      * @return  Dispersion energy of the system
      */
-    double GetDispersion(bool do_grads);
+     double GetDispersion(bool do_grads, bool use_ghost = 0);
+  
+    /**
+     * Private function to internally get the k-space portion of dispersion energy.
+     * Gradients of the system will be updated.
+     * @param[in] do_grads Boolean. If true, gradients will be computed.
+     * If false, gradients won't be computed.
+     * @param[in] use_ghost Boolean. If true, include ghost monomers in calculation. Otherwise,
+     * only local monomers included (default)
+     * @return  Dispersion energy of the system
+     */
+     double GetDispersionPME(bool do_grads, bool use_ghost = 0);
 
     /**
      * Private function to internally get the buckinham energy.
      * Gradients of the system will be updated.
      * @param[in] do_grads Boolean. If true, gradients will be computed.
      * If false, gradients won't be computed.
+     * @param[in] use_ghost Boolean. If true, include ghost monomers in calculation. Otherwise,
+     * only local monomers included (default)
      * @return  Buckingham energy of the system
      */
-    double GetBuckingham(bool do_grads);
+    double GetBuckingham(bool do_grads, bool use_ghost = 0);
 
    private:
     /**
@@ -1030,15 +1156,25 @@ to be the same.
     /**
      * Vector that stores the simulation box.
      * The center of the box is origin of coordinates
-     * @warning For now, only cubic or rectangular boxes are allowed.
      */
     std::vector<double> box_;
+
+    /**
+     * Vector that stores the simulation box inverse.
+     */
+    std::vector<double> box_inverse_;
 
     /**
      * Vector that stores the id of each monomer in the internal order
      * of the system
      */
     std::vector<std::string> monomers_;
+
+    /**
+     * Vector that stores local/ghost descriptor for monomer in the internal order
+     * of the system
+     */
+    std::vector<size_t> islocal_;
 
     /**
      * Vector that stores the atom names of all sites in the internal order
@@ -1060,9 +1196,20 @@ to be the same.
     std::vector<std::pair<std::string, size_t> > mon_type_count_;
 
     /**
-     * This vector contains the pairs that will use TTM-nrg instead of MB-nrg
+     * This vector contains the pairs that will use TTM-nrg instead of MB-nrg for 1b
+     */
+    std::vector<std::string> ff_mons_;
+
+    /**
+     * This vector contains the pairs that will use TTM-nrg instead of MB-nrg for 2b
      */
     std::vector<std::pair<std::string, std::string> > buck_pairs_;
+
+    /**
+     * This vector of vectors contains the pairs of monomer types that will be ignored when
+     * when calculating the 1b polynomials.
+     */
+    std::vector<std::string> ignore_1b_poly_;
 
     /**
      * This vector of vectors contains the pairs of monomer types that will be ignored when
@@ -1110,6 +1257,29 @@ to be the same.
      * Json configuration object
      */
     nlohmann::json mbx_j_;
+  
+    /**
+     * Set to true when driver has intialized MPI
+    */
+    bool mpi_initialized_;
+  
+    /**
+     * MPI Communicator from driver code
+    */
+    MPI_Comm world_;
+
+    /**
+     * MPI processor grid
+    */
+    size_t proc_grid_x_;
+    size_t proc_grid_y_;
+    size_t proc_grid_z_;
+
+    /**
+     * Vector that holds the connectivity of each monomer type
+     */
+    std::unordered_map<std::string, eff::Conn> connectivity_map_;
+    // static std::unordered_map<std::string, eff::Conn> connectivity_map_;
 };
 
 }  // namespace bblock

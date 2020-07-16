@@ -1,0 +1,41 @@
+$ ./test_no3b2 
+**WARNING** "ff_mons" is not defined in json file. Using empty list.
+**WARNING** "ignore_1b_poly" is not defined in json file. Using empty list.
+**WARNING** "connectivity_file" is not defined in json file. Not using 1B TTM-nrg.
+ System initialized.
+
+free(): invalid next size (normal)
+
+Program received signal SIGABRT: Process abort signal.
+
+Backtrace for this error:
+#0  0x7f27881332ed in ???
+#1  0x7f2788132503 in ???
+#2  0x7f2787d65f1f in ???
+#3  0x7f2787d65e97 in ???
+#4  0x7f2787d67800 in ???
+#5  0x7f2787db0896 in ???
+#6  0x7f2787db7909 in ???
+#7  0x7f2787dbf0ac in ???
+#8  0x7f278869286b in _ZN9__gnu_cxx13new_allocatorIdE10deallocateEPdm
+	at /usr/include/c++/7/ext/new_allocator.h:125
+#9  0x7f278868bf10 in _ZNSt16allocator_traitsISaIdEE10deallocateERS0_Pdm
+	at /usr/include/c++/7/bits/alloc_traits.h:462
+#10  0x7f2788682785 in _ZNSt12_Vector_baseIdSaIdEE13_M_deallocateEPdm
+	at /usr/include/c++/7/bits/stl_vector.h:180
+#11  0x7f2788682d08 in _ZNSt6vectorIdSaIdEE17_M_realloc_insertIJRKdEEEvN9__gnu_cxx17__normal_iteratorIPdS1_EEDpOT_
+	at /usr/include/c++/7/bits/vector.tcc:448
+#12  0x7f278867d07f in _ZNSt6vectorIdSaIdEE9push_backERKd
+	at /usr/include/c++/7/bits/stl_vector.h:948
+#13  0x7f2788673cff in _ZN6bblock6System5Get3BEbb
+	at /home/es732/programs/MBX/src/bblock/system.cpp:1889
+#14  0x7f278866f3c2 in _ZN6bblock6System6EnergyEb
+	at /home/es732/programs/MBX/src/bblock/system.cpp:1262
+#15  0x7f27886d18a7 in get_energy_pbc_
+	at /home/es732/programs/MBX/src/bblock/external_call.cpp:122
+#16  0x563919b4d0dc in test
+	at /home/es732/programs/MBX/examples/h2o-co2/test_sH/test_no3b2.f90:120
+#17  0x563919b4d743 in main
+	at /home/es732/programs/MBX/examples/h2o-co2/test_sH/test_no3b2.f90:149
+Aborted (core dumped)
+

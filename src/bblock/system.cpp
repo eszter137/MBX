@@ -52,9 +52,11 @@ SOFTWARE WILL NOT INFRINGE ANY PATENT, TRADEMARK OR OTHER RIGHTS.
 
 namespace bblock {  // Building Block :: System
 
+// std::unordered_map<std::string, eff::Conn> bblock::System::connectivity_map_;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-System::System() { initialized_ = false; }
+System::System() { initialized_ = false; mpi_initialized_ = false; }
 System::~System() {}
 
 size_t System::GetNumMol() { return nummol; }
@@ -65,7 +67,7 @@ size_t System::GetNumRealSites() { return numat_; }
 size_t System::GetMonNumAt(size_t n) { return nat_[original2current_order_[n]]; }
 
 std::vector<size_t> System::GetMonNumAt() {
-    std::vector<size_t> monnumat(nat_.size(),0);
+    std::vector<size_t> monnumat(nat_.size(), 0);
     for (size_t i = 0; i < nat_.size(); i++) {
         monnumat[i] = nat_[original2current_order_[i]];
     }
@@ -187,38 +189,37 @@ std::vector<std::string> System::GetMonId() {
     return mon_ids;
 }
 
-std::vector<double> System::GetVirial() {return virial_;}
+std::vector<double> System::GetVirial() { return virial_; }
 
-std::vector<double> System::GetBox() { return box_;}
+std::vector<double> System::GetBox() { return box_; }
 
-size_t System::GetMaxEval1b() { return maxNMonEval_;}
+size_t System::GetMaxEval1b() { return maxNMonEval_; }
 
-size_t System::GetMaxEval2b() { return maxNDimEval_;}
+size_t System::GetMaxEval2b() { return maxNDimEval_; }
 
-size_t System::GetMaxEval3b() { return maxNTriEval_;}
+size_t System::GetMaxEval3b() { return maxNTriEval_; }
 
-double System::GetDipoleTolerance() { return diptol_;}
+double System::GetDipoleTolerance() { return diptol_; }
 
-std::string System::GetDipoleMethod() { return dipole_method_;}
+std::string System::GetDipoleMethod() { return dipole_method_; }
 
-size_t System::GetMaxIterationsDipoles() { return maxItDip_;}
+size_t System::GetMaxIterationsDipoles() { return maxItDip_; }
 
 void System::GetEwaldParamsElectrostatics(double &alpha, double &grid_density, size_t &spline_order) {
-    alpha = elec_alpha_; 
+    alpha = elec_alpha_;
     grid_density = elec_grid_density_;
     spline_order = elec_spline_order_;
 }
 
 void System::GetEwaldParamsDispersion(double &alpha, double &grid_density, size_t &spline_order) {
-    alpha = disp_alpha_; 
+    alpha = disp_alpha_;
     grid_density = disp_grid_density_;
     spline_order = disp_spline_order_;
 }
 
-
 // FIXME As for today, these functions are not used. // MRR 20191022
 // Will need to activate them and use them whenever we need them for MB-Spec
-//void System::GetMolecularDipoles(std::vector<double> &mu_perm, std::vector<double> &mu_ind) {
+// void System::GetMolecularDipoles(std::vector<double> &mu_perm, std::vector<double> &mu_ind) {
 //    std::vector<double> tmp_perm = electrostaticE_.GetMolecularPermanentDipoles();
 //    std::vector<double> tmp_ind = electrostaticE_.GetMolecularInducedDipoles();
 //
@@ -234,7 +235,7 @@ void System::GetEwaldParamsDispersion(double &alpha, double &grid_density, size_
 //    }
 //}
 //
-//void System::GetDipoles(std::vector<double> &mu_perm, std::vector<double> &mu_ind) {
+// void System::GetDipoles(std::vector<double> &mu_perm, std::vector<double> &mu_ind) {
 //    mu_perm = electrostaticE_.GetPermanentDipoles();
 //    mu_ind = electrostaticE_.GetInducedDipoles();
 //
@@ -242,7 +243,7 @@ void System::GetEwaldParamsDispersion(double &alpha, double &grid_density, size_
 //    systools::ResetOrderReal3N(mu_ind, initial_order_realSites_, numat_, first_index_, nat_);
 //}
 //
-//void System::GetTotalDipole(std::vector<double> &mu_perm, std::vector<double> &mu_ind, std::vector<double> &mu_tot) {
+// void System::GetTotalDipole(std::vector<double> &mu_perm, std::vector<double> &mu_ind, std::vector<double> &mu_tot) {
 //    std::vector<double> all_mu_perm = electrostaticE_.GetPermanentDipoles();
 //    std::vector<double> all_mu_ind = electrostaticE_.GetInducedDipoles();
 //
@@ -262,7 +263,7 @@ void System::GetEwaldParamsDispersion(double &alpha, double &grid_density, size_
 //    }
 //}
 //
-//std::vector<double> System::GetChargeDerivativesOHH() {
+// std::vector<double> System::GetChargeDerivativesOHH() {
 //    std::vector<double> chg_der(numat_ * numat_ * 3, 0.0);
 //
 //    size_t fi_chgder = 0;
@@ -301,7 +302,7 @@ void System::GetEwaldParamsDispersion(double &alpha, double &grid_density, size_
 //    return chg_der;
 //}
 //
-//std::vector<double> System::GetChargeDerivatives() {
+// std::vector<double> System::GetChargeDerivatives() {
 //    std::vector<double> chg_der(numsites_ * numsites_ * 3, 0.0);
 //
 //    size_t fi_chgder = 0;
@@ -408,12 +409,13 @@ void System::SetPBC(std::vector<double> box) {
     // Set the box and the bool to use or not pbc
     use_pbc_ = box.size();
     box_ = box;
+    box_inverse_ = InvertUnitCell(box_);
 
     // If we use PBC, we need to make sure that the monomer atoms are all
     // close to the central atom (1st atom of each monomer)
     if (use_pbc_) {
         // Fix monomer coordinates
-        systools::FixMonomerCoordinates(xyz_, box_, nat_, first_index_);
+        systools::FixMonomerCoordinates(xyz_, box_, box_inverse_, nat_, first_index_);
     }
 
 #ifdef DEBUG
@@ -467,7 +469,7 @@ void System::SetRealXyz(std::vector<double> xyz) {
     }
 }
 
-void System::AddMonomer(std::vector<double> xyz, std::vector<std::string> atoms, std::string id) {
+void System::AddMonomer(std::vector<double> xyz, std::vector<std::string> atoms, std::string id, size_t islocal) {
     // If the system has been initialized, adding a monomer is not possible
     if (initialized_) {
         std::string text = std::string("The system has already been initialized. ") +
@@ -481,15 +483,21 @@ void System::AddMonomer(std::vector<double> xyz, std::vector<std::string> atoms,
     for (auto i = atoms.begin(); i != atoms.end(); i++) atoms_.push_back(*i);
     // Adding id
     monomers_.push_back(id);
+    // Adding local/ghost descriptor
+    islocal_.push_back(islocal);
 }
 
 void System::AddMolecule(std::vector<size_t> molec) { molecules_.push_back(molec); }
 
-std::vector<std::pair<std::string, std::string> > System::GetTTMnrgPairs() { return buck_pairs_;}
+std::vector<std::pair<std::string, std::string>> System::GetTTMnrgPairs() { return buck_pairs_; }
 
-std::vector<std::vector<std::string> > System::Get2bIgnorePoly() {return ignore_2b_poly_;}
+std::vector<std::string> System::GetFFMons() { return ff_mons_; }
 
-std::vector<std::vector<std::string> > System::Get3bIgnorePoly() {return ignore_3b_poly_;}
+std::vector<std::string> System::Get1bIgnorePoly() { return ignore_1b_poly_; }
+
+std::vector<std::vector<std::string>> System::Get2bIgnorePoly() { return ignore_2b_poly_; }
+
+std::vector<std::vector<std::string>> System::Get3bIgnorePoly() { return ignore_3b_poly_; }
 
 void System::AddTTMnrgPair(std::string mon1, std::string mon2) {
     std::pair<std::string, std::string> p = mon2 < mon1 ? std::make_pair(mon2, mon1) : std::make_pair(mon1, mon2);
@@ -499,38 +507,54 @@ void System::AddTTMnrgPair(std::string mon1, std::string mon2) {
     }
 }
 
-void System::SetTTMnrgPairs(std::vector<std::pair<std::string, std::string> > ttm_pairs) {
+void System::SetTTMnrgPairs(std::vector<std::pair<std::string, std::string>> ttm_pairs) {
     buck_pairs_.clear();
 
     for (auto it = ttm_pairs.begin(); it != ttm_pairs.end(); it++) {
         std::string s1 = (*it).first;
         std::string s2 = (*it).second;
-        std::pair<std::string,std::string> p = s2 < s1 ? std::make_pair(s2,s1) : std::make_pair(s1,s2);
+        std::pair<std::string, std::string> p = s2 < s1 ? std::make_pair(s2, s1) : std::make_pair(s1, s2);
         buck_pairs_.push_back(p);
     }
 }
 
+void System::SetFFMons(std::vector<std::string> ff_mons) { ff_mons_ = ff_mons; }
+
+void System::AddFFMon(std::string mon) {
+    if (std::find(ff_mons_.begin(), ff_mons_.end(), mon) == ff_mons_.end()) {
+        ff_mons_.push_back(mon);
+    }
+}
+
+void System::Add1bIgnorePoly(std::string mon) {
+    if (std::find(ignore_1b_poly_.begin(), ignore_1b_poly_.end(), mon) == ignore_1b_poly_.end()) {
+        ignore_1b_poly_.push_back(mon);
+    }
+}
+
+void System::Set1bIgnorePoly(std::vector<std::string> ignore_1b) { ignore_1b_poly_ = ignore_1b; }
+
 void System::Add2bIgnorePoly(std::string mon1, std::string mon2) {
-    std::vector<std::string> p = {mon1,mon2};
+    std::vector<std::string> p = {mon1, mon2};
     std::sort(p.begin(), p.end());
-    
+
     if (std::find(ignore_2b_poly_.begin(), ignore_2b_poly_.end(), p) == ignore_2b_poly_.end()) {
         ignore_2b_poly_.push_back(p);
     }
 }
 
-void System::Set2bIgnorePoly(std::vector<std::vector<std::string> > ignore_2b) {
+void System::Set2bIgnorePoly(std::vector<std::vector<std::string>> ignore_2b) {
     ignore_2b_poly_.clear();
 
     for (size_t i = 0; i < ignore_2b.size(); i++) {
         std::vector<std::string> p = ignore_2b[i];
-        std::sort(p.begin(),p.end());
+        std::sort(p.begin(), p.end());
         ignore_2b_poly_.push_back(p);
     }
 }
 
 void System::Add3bIgnorePoly(std::string mon1, std::string mon2, std::string mon3) {
-    std::vector<std::string> p = {mon1,mon2,mon3};
+    std::vector<std::string> p = {mon1, mon2, mon3};
     std::sort(p.begin(), p.end());
 
     if (std::find(ignore_3b_poly_.begin(), ignore_3b_poly_.end(), p) == ignore_3b_poly_.end()) {
@@ -538,12 +562,12 @@ void System::Add3bIgnorePoly(std::string mon1, std::string mon2, std::string mon
     }
 }
 
-void System::Set3bIgnorePoly(std::vector<std::vector<std::string> > ignore_3b) {
+void System::Set3bIgnorePoly(std::vector<std::vector<std::string>> ignore_3b) {
     ignore_3b_poly_.clear();
 
     for (size_t i = 0; i < ignore_3b.size(); i++) {
         std::vector<std::string> p = ignore_3b[i];
-        std::sort(p.begin(),p.end());
+        std::sort(p.begin(), p.end());
         ignore_3b_poly_.push_back(p);
     }
 }
@@ -560,7 +584,7 @@ void System::Initialize() {
     std::cerr << std::scientific << std::setprecision(10);
     std::cout << std::scientific << std::setprecision(10);
 #endif
-
+    
     /////////////
     // CUTOFFS //
     /////////////
@@ -621,7 +645,7 @@ void System::Initialize() {
     SetC6LongRange();
 
     // Define the virial vector
-    virial_ = std::vector<double>(9,0.0);
+    virial_ = std::vector<double>(9, 0.0);
 
     // With the information previously set, we initialize the
     // electrostatics class
@@ -632,8 +656,9 @@ void System::Initialize() {
     // TODO Is this OK? Order of GetReal is input order.
     std::vector<double> xyz_real = GetRealXyz();
     // TODO modify c6_long_range
-    dispersionE_.Initialize(c6_lr_, xyz_real, monomers_, nat_, mon_type_count_, true, box_);
-    buckinghamE_.Initialize(xyz_real, monomers_, nat_, mon_type_count_, true, box_);
+    if(mpi_initialized_) dispersionE_.SetMPI(world_, proc_grid_x_, proc_grid_y_, proc_grid_z_);
+    dispersionE_.Initialize(c6_lr_, xyz_real, monomers_, nat_, mon_type_count_, islocal_, true, box_);
+    buckinghamE_.Initialize(xyz_real, monomers_, nat_, mon_type_count_, islocal_, true, box_);
 
     // We are done. Setting initialized_ to true
     initialized_ = true;
@@ -767,7 +792,8 @@ void System::SetUpFromJson(nlohmann::json j) {
         grid_density_disp = j["MBX"]["grid_density_disp"];
     } catch (...) {
         grid_density_disp = 2.5;
-        std::cerr << "**WARNING** \"grid_density_disp\" is not defined in json file. Using " << grid_density_disp << "\n";
+        std::cerr << "**WARNING** \"grid_density_disp\" is not defined in json file. Using " << grid_density_disp
+                  << "\n";
     }
     mbx_j_["MBX"]["grid_density_disp"] = grid_density_disp;
 
@@ -778,7 +804,8 @@ void System::SetUpFromJson(nlohmann::json j) {
         spline_order_disp = j["MBX"]["spline_order_disp"];
     } catch (...) {
         spline_order_disp = 6;
-        std::cerr << "**WARNING** \"spline_order_disp\" is not defined in json file. Using " << spline_order_disp << "\n";
+        std::cerr << "**WARNING** \"spline_order_disp\" is not defined in json file. Using " << spline_order_disp
+                  << "\n";
     }
     mbx_j_["MBX"]["spline_order_disp"] = spline_order_disp;
 
@@ -802,7 +829,8 @@ void System::SetUpFromJson(nlohmann::json j) {
         grid_density_elec = j["MBX"]["grid_density_elec"];
     } catch (...) {
         grid_density_elec = 2.5;
-        std::cerr << "**WARNING** \"grid_density_elec\" is not defined in json file. Using " << grid_density_elec << "\n";
+        std::cerr << "**WARNING** \"grid_density_elec\" is not defined in json file. Using " << grid_density_elec
+                  << "\n";
     }
     mbx_j_["MBX"]["grid_density_elec"] = grid_density_elec;
 
@@ -813,13 +841,14 @@ void System::SetUpFromJson(nlohmann::json j) {
         spline_order_elec = j["MBX"]["spline_order_elec"];
     } catch (...) {
         spline_order_elec = 6;
-        std::cerr << "**WARNING** \"spline_order_elec\" is not defined in json file. Using " << spline_order_elec << "\n";
+        std::cerr << "**WARNING** \"spline_order_elec\" is not defined in json file. Using " << spline_order_elec
+                  << "\n";
     }
     mbx_j_["MBX"]["spline_order_elec"] = spline_order_elec;
 
     SetEwaldElectrostatics(alpha_elec, grid_density_elec, spline_order_elec);
 
-    std::vector<std::pair<std::string, std::string> > ttm_pairs;
+    std::vector<std::pair<std::string, std::string>> ttm_pairs;
     try {
         std::vector<std::pair<std::string, std::string>> ttm_pairs2 = j["MBX"]["ttm_pairs"];
         ttm_pairs = ttm_pairs2;
@@ -830,7 +859,29 @@ void System::SetUpFromJson(nlohmann::json j) {
     SetTTMnrgPairs(ttm_pairs);
     mbx_j_["MBX"]["ttm_pairs"] = buck_pairs_;
 
-    std::vector<std::vector<std::string> > ignore_2b_poly;
+    std::vector<std::string> ff_mons;
+    try {
+        std::vector<std::string> ff_mons2 = j["MBX"]["ff_mons"];
+        ff_mons = ff_mons2;
+    } catch (...) {
+        ff_mons.clear();
+        std::cerr << "**WARNING** \"ff_mons\" is not defined in json file. Using empty list.\n";
+    }
+    SetFFMons(ff_mons);
+    mbx_j_["MBX"]["ff_mons"] = ff_mons_;
+
+    std::vector<std::string> ignore_1b_poly;
+    try {
+        std::vector<std::string> ignore_1b_poly2 = j["MBX"]["ignore_1b_poly"];
+        ignore_1b_poly = ignore_1b_poly2;
+    } catch (...) {
+        ignore_1b_poly.clear();
+        std::cerr << "**WARNING** \"ignore_1b_poly\" is not defined in json file. Using empty list.\n";
+    }
+    Set1bIgnorePoly(ignore_1b_poly);
+    mbx_j_["MBX"]["ignore_1b_poly"] = ignore_1b_poly_;
+
+    std::vector<std::vector<std::string>> ignore_2b_poly;
     try {
         std::vector<std::vector<std::string>> ignore_2b_poly2 = j["MBX"]["ignore_2b_poly"];
         ignore_2b_poly = ignore_2b_poly2;
@@ -841,7 +892,7 @@ void System::SetUpFromJson(nlohmann::json j) {
     Set2bIgnorePoly(ignore_2b_poly);
     mbx_j_["MBX"]["ignore_2b_poly"] = ignore_2b_poly_;
 
-    std::vector<std::vector<std::string> > ignore_3b_poly;
+    std::vector<std::vector<std::string>> ignore_3b_poly;
     try {
         std::vector<std::vector<std::string>> ignore_3b_poly2 = j["MBX"]["ignore_3b_poly"];
         ignore_3b_poly = ignore_3b_poly2;
@@ -852,13 +903,28 @@ void System::SetUpFromJson(nlohmann::json j) {
     Set3bIgnorePoly(ignore_3b_poly);
     mbx_j_["MBX"]["ignore_3b_poly"] = ignore_3b_poly_;
 
+    std::string connectivity_file = "";
+    try {
+        connectivity_file = j["MBX"]["connectivity_file"];
+        // Set the connectivity map in system
+        // FIXME MRR Get connectivity from the file
+        // FIXME MRR Set up connectivity in system
+        tools::ReadConnectivity(connectivity_file.c_str(), connectivity_map_);
+    } catch (...) {
+        connectivity_file = "";
+        std::cerr << "**WARNING** \"connectivity_file\" is not defined in json file. Not using 1B TTM-nrg.\n";
+    }
+    mbx_j_["MBX"]["connectivity_file"] = connectivity_file;
+
     SetPBC(box_);
 }
 
-nlohmann::json System::GetJsonConfig() {
-    return mbx_j_;
-}
+nlohmann::json System::GetJsonConfig() { return mbx_j_; }
 
+void System::SetUpFromJson(std::string json_text) {
+    nlohmann::json j = nlohmann::json::parse(json_text);
+    SetUpFromJson(j);
+}
 
 void System::SetUpFromJson(char *json_file) {
     /* Template example for mbx.json
@@ -881,8 +947,11 @@ void System::SetUpFromJson(char *json_file) {
        "grid_density_disp" : 2.5,
        "spline_order_disp" : 6,
        "ttm_pairs" : [],
+       "ff_mons" : [],
+       "ignore_1b_poly" : [],
        "ignore_2b_poly" : [],
-       "ignore_3b_poly" : []
+       "ignore_3b_poly" : [],
+       "connectivity_file" = "";
    } ,
    "i-pi" : {
        "port" : 34543,
@@ -891,42 +960,30 @@ void System::SetUpFromJson(char *json_file) {
 }
      */
 
-    nlohmann::json j_default =
-    {
-        {
-            "Note" , "This is a cofiguration file"
-        },
-        {
-            "MBX" ,
-            {
-                {"box" , nlohmann::json::array()},
-                {"twobody_cutoff"   , 100.0},
-                {"threebody_cutoff" , 6.5},
-                {"max_n_eval_1b"    , 500},
-                {"max_n_eval_2b"    , 500},
-                {"max_n_eval_3b"    , 500},
-                {"dipole_tolerance" , 1E-16},
-                {"dipole_max_it"    , 100},
-                {"dipole_method"    , "cg"},
-                {"alpha_ewald_elec" , 0.0},
-                {"grid_density_elec",  2.5},
-                {"spline_order_elec",  6},
-                {"alpha_ewald_disp" , 0.0},
-                {"grid_density_disp",  2.5},
-                {"spline_order_disp",  6},
-                {"ttm_pairs" , nlohmann::json::array()},
-                {"ignore_2b_poly" , nlohmann::json::array()},
-                {"ignore_3b_poly" , nlohmann::json::array()}
-            }
-        } ,
-        {
-            "i-pi",
-            {
-                {"port" , 34543},
-                {"localhost" , "localhost"}
-            }
-        }
-    };
+    nlohmann::json j_default = {{"Note", "This is a cofiguration file"},
+                                {"MBX",
+                                 {{"box", nlohmann::json::array()},
+                                  {"twobody_cutoff", 100.0},
+                                  {"threebody_cutoff", 6.5},
+                                  {"max_n_eval_1b", 500},
+                                  {"max_n_eval_2b", 500},
+                                  {"max_n_eval_3b", 500},
+                                  {"dipole_tolerance", 1E-16},
+                                  {"dipole_max_it", 100},
+                                  {"dipole_method", "cg"},
+                                  {"alpha_ewald_elec", 0.0},
+                                  {"grid_density_elec", 2.5},
+                                  {"spline_order_elec", 6},
+                                  {"alpha_ewald_disp", 0.0},
+                                  {"grid_density_disp", 2.5},
+                                  {"spline_order_disp", 6},
+                                  {"ttm_pairs", nlohmann::json::array()},
+                                  {"ff_mons", nlohmann::json::array()},
+                                  {"connectivity_file", ""},
+                                  {"ignore_1b_poly", nlohmann::json::array()},
+                                  {"ignore_2b_poly", nlohmann::json::array()},
+                                  {"ignore_3b_poly", nlohmann::json::array()}}},
+                                {"i-pi", {{"port", 34543}, {"localhost", "localhost"}}}};
     std::ifstream ifjson;
     nlohmann::json j;
     if (json_file != 0) {
@@ -941,7 +998,7 @@ void System::SetUpFromJson(char *json_file) {
     } else {
         j = j_default;
     }
-    
+
     SetUpFromJson(j);
 
     ifjson.close();
@@ -991,6 +1048,12 @@ void System::AddMonomerInfo() {
     }
     std::cerr << std::endl;
 
+    std::cerr << "Local/Ghost vector:\n";
+    for (size_t i = 0; i < islocal_.size(); i++) {
+        std::cerr << islocal_[i] << " , ";
+    }
+    std::cerr << std::endl;
+
     std::cerr << "Atoms vector:\n";
     for (size_t i = 0; i < nat_.size(); i++) {
         std::cerr << nat_[i] << " , ";
@@ -1011,8 +1074,8 @@ void System::AddMonomerInfo() {
     }
 
     // Ordering monomers by monomer type, from less to more monomers of each type
-    mon_type_count_ = systools::OrderMonomers(monomers_, sites_, nat_, original2current_order_, initial_order_,
-                                              initial_order_realSites_);
+    mon_type_count_ = systools::OrderMonomers(monomers_, islocal_, sites_, nat_, original2current_order_,
+                                              initial_order_, initial_order_realSites_);
 
 #ifdef DEBUG
     std::cerr << "Finished OrderMonomers():\n";
@@ -1025,6 +1088,12 @@ void System::AddMonomerInfo() {
     std::cerr << "New monomer vector:\n";
     for (size_t i = 0; i < monomers_.size(); i++) {
         std::cerr << monomers_[i] << ",";
+    }
+    std::cerr << std::endl;
+
+    std::cerr << "New Local/Ghost vector:\n";
+    for (size_t i = 0; i < islocal_.size(); i++) {
+        std::cerr << islocal_[i] << " , ";
     }
     std::cerr << std::endl;
 
@@ -1084,7 +1153,7 @@ void System::AddMonomerInfo() {
     polfac_ = std::vector<double>(numsites_, 0.0);
 }
 
-void System::AddClusters(size_t nmax, double cutoff, size_t istart, size_t iend) {
+void System::AddClusters(size_t nmax, double cutoff, size_t istart, size_t iend, bool use_ghost_) {
     // istart is the monomer position for which we will look all dimers and
     // trimers that contain it. iend is the last monomer position.
     // This means, if istart is 0 and iend is 2, we will look for all dimers
@@ -1100,10 +1169,12 @@ void System::AddClusters(size_t nmax, double cutoff, size_t istart, size_t iend)
     //}
 
     size_t nmon = monomers_.size();
-    systools::AddClusters(nmax, cutoff, istart, iend, nmon, use_pbc_, box_, xyz_, first_index_, dimers_, trimers_);
+    systools::AddClusters(nmax, cutoff, istart, iend, nmon, use_pbc_, box_, box_inverse_, xyz_, first_index_, islocal_, dimers_,
+                          trimers_, use_ghost_);
 }
 
-std::vector<size_t> System::AddClustersParallel(size_t nmax, double cutoff, size_t istart, size_t iend) {
+std::vector<size_t> System::AddClustersParallel(size_t nmax, double cutoff, size_t istart, size_t iend,
+                                                bool use_ghost_) {
     // Overloaded function to be compatible with omp
     // Returns dimers if nmax == 2, or trimers if nmax == 3
 
@@ -1118,9 +1189,14 @@ std::vector<size_t> System::AddClustersParallel(size_t nmax, double cutoff, size
 
     size_t nmon = monomers_.size();
     std::vector<size_t> dimers, trimers;
-    systools::AddClusters(nmax, cutoff, istart, iend, nmon, use_pbc_, box_, xyz_, first_index_, dimers, trimers);
+    systools::AddClusters(nmax, cutoff, istart, iend, nmon, use_pbc_, box_, box_inverse_, xyz_, first_index_, islocal_, dimers,
+                          trimers, use_ghost_);
     if (nmax == 2) return dimers;
     return trimers;
+}
+
+void System::SetConnectivity(std::unordered_map<std::string, eff::Conn> connectivity_map) {
+    connectivity_map_ = connectivity_map;
 }
 
 double System::Energy(bool do_grads) {
@@ -1135,10 +1211,13 @@ double System::Energy(bool do_grads) {
     // Reset energy and grads in system to 0
     energy_ = 0.0;
     std::fill(grad_.begin(), grad_.end(), 0.0);
-    std::fill(virial_.begin(),virial_.end(),0.0);
+    std::fill(virial_.begin(), virial_.end(), 0.0);
 
     // Reset the charges, pols, polfacs and new Vsite
     SetPBC(box_);
+
+    // Call the get energy function
+    allMonGood_ = true;
 
     // Get the NB contributions
 
@@ -1146,7 +1225,7 @@ double System::Energy(bool do_grads) {
     auto t1 = std::chrono::high_resolution_clock::now();
 #endif
 
-    allMonGood_ = true;
+    double eff = GetFF(do_grads);
     double e1b = Get1B(do_grads);
 
     // If monomers are too distorted, skip 2b and 3b calculation
@@ -1195,7 +1274,7 @@ double System::Energy(bool do_grads) {
 #endif
 
     // Set up energy with the new value
-    energy_ = e1b + e2b + e3b + edisp + ebuck + Eelec;
+    energy_ = eff + e1b + e2b + e3b + edisp + ebuck + Eelec;
 
 #ifdef PRINT_INDIVIDUAL_TERMS
     std::cerr << std::setprecision(10) << std::scientific;
@@ -1239,7 +1318,7 @@ double System::OneBodyEnergy(bool do_grads) {
     // Reset energy and gradients
     energy_ = 0.0;
     std::fill(grad_.begin(), grad_.end(), 0.0);
-    std::fill(virial_.begin(),virial_.end(),0.0);
+    std::fill(virial_.begin(), virial_.end(), 0.0);
 
     SetPBC(box_);
 
@@ -1248,22 +1327,55 @@ double System::OneBodyEnergy(bool do_grads) {
     return energy_;
 }
 
-double System::Get1B(bool do_grads) {
-    // 1B ENERGY
+double System::ClassicPotential(bool do_grads) {
+    // Check if system has been initialized
+    // If not, throw exception
+    if (!initialized_) {
+        std::string text =
+            std::string("System has not been initialized. ") + std::string("1B Energy calculation not possible.");
+        throw CUException(__func__, __FILE__, __LINE__, text);
+    }
+
+    // Reset energy and gradients
+    energy_ = 0.0;
+    std::fill(grad_.begin(), grad_.end(), 0.0);
+    std::fill(virial_.begin(), virial_.end(), 0.0);
+
+    SetPBC(box_);
+
+    // Calculate the 1b energy
+    energy_ = GetFF(do_grads);
+    return energy_;
+}
+
+double System::GetFF(bool do_grads) {
+    // 1B CLASSICAL ENERGY
     // Loop overall the monomers and get their energy
     size_t curr_mon_type = 0;
     size_t current_coord = 0;
-    double e1b = 0.0;
+    double eff = 0.0;
 
+    // EY: WARNING. THE FOLLOWING CODE HAS BEEN ANNOTATED BY ERIC YEH. DELETE AS
+    // APPROPRIATE. All lines commented by ERIC YEH have "EY:" in front of the line
+
+    // EY: Loop over the number of types. so the number of unique id's. Say you have
+    // EY: CO2 and H2O. This loop runs twice. Once for co2 and another for h2o
+    // EY: Each iteration SET a single id that you consider
     for (size_t k = 0; k < mon_type_count_.size(); k++) {
         // Useful variables
         size_t istart = 0;
         size_t iend = 0;
+
+        if (std::find(ff_mons_.begin(), ff_mons_.end(), mon_type_count_[k].first) == ff_mons_.end()) {
+            continue;
+        }
+
+        // EY: Loops over the number monomer of the current id or type
         while (istart < mon_type_count_[k].second) {
             iend = std::min(istart + maxNMonEval_, mon_type_count_[k].second);
             size_t nmon = iend - istart;
-            size_t ncoord = 3 * nat_[curr_mon_type] * nmon;
-            std::string mon = mon_type_count_[k].first;
+            size_t ncoord = 3 * nat_[curr_mon_type] * nmon;  // EY: Number of coordinates that need to be assigned
+            std::string mon = mon_type_count_[k].first;      // EY: Monomer id
 
             // XYZ with real sites
             std::vector<double> xyz(ncoord, 0.0);
@@ -1278,13 +1390,107 @@ double System::Get1B(bool do_grads) {
 
             // Get energy of the chunk as function of monomer
             if (do_grads) {
-                e1b += e1b::get_1b_energy(mon, nmon, xyz, grad2, allMonGood_, &virial_);
+                // EY: Overloaded function to get BOTH gradient and virial.
+                // EY: Note: grad2 is passed by reference.
+                try {
+                    eff += eff::get_ff_energy(bblock::System::connectivity_map_.at(mon), nmon, xyz, grad2, allMonGood_,
+                                              nat_[curr_mon_type], &virial_);
+                } catch (const std::exception &e) {
+                    std::string text =
+                        std::string("Monomer id not contained in connectivity map. System monomer id given is: ") +
+                        std::to_string(nat_[curr_mon_type]) +
+                        std::string(". Is correct monomer id defined in connectivity file?");
+                    throw CUException(__func__, __FILE__, __LINE__, text);
+                }
 
                 // Reorganize gradients
                 for (size_t i = 0; i < nmon; i++) {
                     for (size_t j = 0; j < 3 * nat_[curr_mon_type]; j++) {
                         grad_[current_coord + 3 * (i + istart) * sites_[curr_mon_type] + j] +=
                             grad2[3 * i * nat_[curr_mon_type] + j];
+                    }
+                }
+            } else {
+                try {
+                    // EY: ONLY get the energy
+                    eff += eff::get_ff_energy(bblock::System::connectivity_map_.at(mon), nmon, xyz, allMonGood_,
+                                              nat_[curr_mon_type]);
+                } catch (const std::exception &e) {
+                    std::string text =
+                        std::string("Monomer id not contained in connectivity map. System monomer id given is: ") +
+                        std::to_string(nat_[curr_mon_type]) +
+                        std::string(". Is correct monomer id defined in connectivity file?");
+                    throw CUException(__func__, __FILE__, __LINE__, text);
+                }
+            }
+
+            istart = iend;
+        }
+
+        // Update current_coord and curr_mon_type
+        current_coord += 3 * mon_type_count_[k].second * sites_[curr_mon_type];
+        curr_mon_type += mon_type_count_[k].second;
+    }
+
+    return eff;
+}
+
+double System::Get1B(bool do_grads) {
+    // 1B ENERGY
+    // Loop overall the monomers and get their energy
+    size_t curr_mon_type = 0;
+    size_t current_coord = 0;
+    double e1b = 0.0;
+
+    size_t indx = 0;
+
+    for (size_t k = 0; k < mon_type_count_.size(); k++) {
+        // Useful variables
+        size_t istart = 0;
+        size_t iend = 0;
+
+        if (std::find(ignore_1b_poly_.begin(), ignore_1b_poly_.end(), mon_type_count_[k].first) !=
+            ignore_1b_poly_.end()) {
+            continue;
+        }
+
+        while (istart < mon_type_count_[k].second) {
+            iend = std::min(istart + maxNMonEval_, mon_type_count_[k].second);
+            size_t nmon = 0;
+            for (size_t i = istart; i < iend; i++)
+                if (islocal_[indx + i]) nmon++;
+
+            size_t ncoord = 3 * nat_[curr_mon_type] * nmon;
+            std::string mon = mon_type_count_[k].first;
+
+            // XYZ with real sites
+            std::vector<double> xyz(ncoord, 0.0);
+            std::vector<double> grad2(ncoord, 0.0);
+
+            // Set up real coordinates
+            size_t ii = istart;
+            for (size_t i = istart; i < iend; i++) {
+                if (islocal_[indx + i]) {
+                    std::copy(xyz_.begin() + current_coord + 3 * i * sites_[curr_mon_type],
+                              xyz_.begin() + current_coord + 3 * (i * sites_[curr_mon_type] + nat_[curr_mon_type]),
+                              xyz.begin() + 3 * (ii - istart) * nat_[curr_mon_type]);
+                    ii++;
+                }
+            }
+
+            // Get energy of the chunk as function of monomer
+            if (do_grads) {
+                e1b += e1b::get_1b_energy(mon, nmon, xyz, grad2, allMonGood_, &virial_);
+
+                // Reorganize gradients
+                size_t ii = 0;
+                for (size_t i = istart; i < iend; i++) {
+                    if (islocal_[indx + i]) {
+                        for (size_t j = 0; j < 3 * nat_[curr_mon_type]; j++) {
+                            grad_[current_coord + 3 * (ii + istart) * sites_[curr_mon_type] + j] +=
+                                grad2[3 * ii * nat_[curr_mon_type] + j];
+                        }
+                        ii++;
                     }
                 }
             } else {
@@ -1297,12 +1503,13 @@ double System::Get1B(bool do_grads) {
         // Update current_coord and curr_mon_type
         current_coord += 3 * mon_type_count_[k].second * sites_[curr_mon_type];
         curr_mon_type += mon_type_count_[k].second;
+        indx = iend;
     }
 
     return e1b;
 }
 
-double System::TwoBodyEnergy(bool do_grads) {
+double System::TwoBodyEnergy(bool do_grads, bool use_ghost) {
     // Check if system has been initialized
     // If not, throw exception
     if (!initialized_) {
@@ -1314,17 +1521,17 @@ double System::TwoBodyEnergy(bool do_grads) {
     // Reset energy and gradients
     energy_ = 0.0;
     std::fill(grad_.begin(), grad_.end(), 0.0);
-    std::fill(virial_.begin(),virial_.end(),0.0);
+    std::fill(virial_.begin(), virial_.end(), 0.0);
 
     SetPBC(box_);
 
     // Calculate the 2b energy
-    energy_ = Get2B(do_grads);
+    energy_ = Get2B(do_grads, use_ghost);
 
     return energy_;
 }
 
-double System::Get2B(bool do_grads) {
+double System::Get2B(bool do_grads, bool use_ghost) {
     // No dimers makes the function return 0.
 
     // 2B ENERGY
@@ -1355,7 +1562,7 @@ double System::Get2B(bool do_grads) {
     // serial and parallel implementation
     std::vector<double> e2b_pool(num_threads, 0.0);
     std::vector<std::vector<double>> grad_pool(num_threads, std::vector<double>(3 * numsites_, 0.0));
-    std::vector<std::vector<double>> virial_pool(num_threads, std::vector<double>(9, 0.0)); // declare virial pool
+    std::vector<std::vector<double>> virial_pool(num_threads, std::vector<double>(9, 0.0));  // declare virial pool
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic) private(rank)
 #endif  // _OPENMP
@@ -1379,11 +1586,11 @@ double System::Get2B(bool do_grads) {
 // OPENMP or not
 
 // This call will get the dimers that have as first index a monomer
-// with index between isatrt and iend (iend not included)
+// with index between istart and iend (iend not included)
 #ifdef _OPENMP
-        std::vector<size_t> dimers = AddClustersParallel(2, cutoff2b_, istart, iend);
+        std::vector<size_t> dimers = AddClustersParallel(2, cutoff2b_, istart, iend, use_ghost);
 #else
-        AddClusters(2, cutoff2b_, istart, iend);
+        AddClusters(2, cutoff2b_, istart, iend, use_ghost);
         std::vector<size_t> dimers = dimers_;
 #endif
 
@@ -1402,7 +1609,7 @@ double System::Get2B(bool do_grads) {
         std::vector<double> xyz2;
         std::vector<double> grad1;
         std::vector<double> grad2;
-        std::vector<double> virial(9,0.0); // declare virial tensor
+        std::vector<double> virial(9, 0.0);  // declare virial tensor
 
         // Define the two monomer ids that we are currently looking at
         std::string m1 = monomers_[dimers[0]];
@@ -1442,7 +1649,7 @@ double System::Get2B(bool do_grads) {
                     xyz2.clear();
                     grad1.clear();
                     grad2.clear();
-                    std::fill(virial.begin(),virial.end(),0.0);
+                    std::fill(virial.begin(), virial.end(), 0.0);
                     m1 = monomers_[dimers[i]];
                     m2 = monomers_[dimers[i + 1]];
                     continue;
@@ -1450,7 +1657,7 @@ double System::Get2B(bool do_grads) {
 
                 // Fix dimer positions if pbc
                 if (use_pbc_) {
-                    systools::GetCloseDimerImage(box_, nat_[dimers[nd_tot * 2]], nat_[dimers[nd_tot * 2 + 1]], nd,
+                    systools::GetCloseDimerImage(box_, box_inverse_, nat_[dimers[nd_tot * 2]], nat_[dimers[nd_tot * 2 + 1]], nd,
                                                  xyz1.data(), xyz2.data());
                 }
 
@@ -1472,11 +1679,11 @@ double System::Get2B(bool do_grads) {
                     if (do_grads) {
                         // POLYNOMIALS
                         e2b_pool[rank] += e2b::get_2b_energy(m1, m2, nd, xyz1, xyz2, grad1, grad2, &virial);
-			
-                        for (size_t k = 0; k < 9; k++){	        // accumulate virial tensor from pool
-                   
+
+                        for (size_t k = 0; k < 9; k++) {  // accumulate virial tensor from pool
+
                             virial_pool[rank][k] += virial[k];
-                        }                                     
+                        }
                         // Update gradients in system
                         size_t i0 = nd_tot * 2;
                         for (size_t k = 0; k < nd; k++) {
@@ -1503,7 +1710,7 @@ double System::Get2B(bool do_grads) {
                 xyz2.clear();
                 grad1.clear();
                 grad2.clear();
-                std::fill(virial.begin(),virial.end(),0.0); // clear virial tensor
+                std::fill(virial.begin(), virial.end(), 0.0);  // clear virial tensor
                 m1 = monomers_[dimers[i]];
                 m2 = monomers_[dimers[i + 1]];
             }
@@ -1526,9 +1733,11 @@ double System::Get2B(bool do_grads) {
 #endif
 
         // Condensate gradients
+        //	const double scale = use_ghost ? 0.5 : 1.0;
+        const double scale = 1.0;  // only accumulate force on local particles in LAMMPS
         for (int i = 0; i < num_threads; i++) {
             for (size_t j = first_grad; j < last_grad; j++) {
-                grad_[j] += grad_pool[i][j];
+                grad_[j] += scale * grad_pool[i][j];
             }
         }
 
@@ -1540,12 +1749,15 @@ double System::Get2B(bool do_grads) {
     for (int i = 0; i < num_threads; i++) {
         e2b_t += e2b_pool[i];
     }
-    // Condensate virial                         
-    for (int i = 0; i < num_threads; i++) { 
-        for (size_t j = 0; j < 9; j++){          
-            virial_[j] += virial_pool[i][j];     
-        }                                        
-    }                                            
+
+    if (use_ghost) e2b_t *= 0.5;
+    // Condensate virial
+    const double scalev = use_ghost ? 0.5 : 1.0;
+    for (int i = 0; i < num_threads; i++) {
+        for (size_t j = 0; j < 9; j++) {
+            virial_[j] += scalev * virial_pool[i][j];
+        }
+    }
 
 #ifdef DEBUG
     std::cerr << "disp = " << edisp_t << "    2b = " << e2b_t << std::endl;
@@ -1554,7 +1766,7 @@ double System::Get2B(bool do_grads) {
     return e2b_t + edisp_t;
 }
 
-double System::ThreeBodyEnergy(bool do_grads) {
+double System::ThreeBodyEnergy(bool do_grads, bool use_ghost) {
     // Check if system has been initialized
     // If not, throw exception
     if (!initialized_) {
@@ -1565,18 +1777,20 @@ double System::ThreeBodyEnergy(bool do_grads) {
 
     energy_ = 0.0;
     std::fill(grad_.begin(), grad_.end(), 0.0);
-    std::fill(virial_.begin(),virial_.end(),0.0);
+    std::fill(virial_.begin(), virial_.end(), 0.0);
 
     SetPBC(box_);
 
-    energy_ = Get3B(do_grads);
+    energy_ = Get3B(do_grads, use_ghost);
 
     return energy_;
 }
 
-double System::Get3B(bool do_grads) {
+double System::Get3B(bool do_grads, bool use_ghost) {
     // 3B ENERGY
     double e3b_t = 0.0;
+
+    const double one_third = 1.0 / 3.0;
 
     // Variables needed for OMP
     size_t step = 1;
@@ -1602,7 +1816,7 @@ double System::Get3B(bool do_grads) {
     // serial and parallel implementation
     std::vector<double> e3b_pool(num_threads, 0.0);
     std::vector<std::vector<double>> grad_pool(num_threads, std::vector<double>(3 * numsites_, 0.0));
-    std::vector<std::vector<double>> virial_pool(num_threads, std::vector<double>(9, 0.0)); // declare virial pool
+    std::vector<std::vector<double>> virial_pool(num_threads, std::vector<double>(9, 0.0));  // declare virial pool
 
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic) private(rank)
@@ -1625,9 +1839,9 @@ double System::Get3B(bool do_grads) {
         size_t iend = std::min(istart + step, nummon_);
 
 #ifdef _OPENMP
-        std::vector<size_t> trimers = AddClustersParallel(3, cutoff3b_, istart, iend);
+        std::vector<size_t> trimers = AddClustersParallel(3, cutoff3b_, istart, iend, use_ghost);
 #else
-        AddClusters(3, cutoff3b_, istart, iend);
+        AddClusters(3, cutoff3b_, istart, iend, use_ghost);
         std::vector<size_t> trimers = trimers_;
 #endif
 
@@ -1654,6 +1868,10 @@ double System::Get3B(bool do_grads) {
         size_t nt = 0;
         size_t nt_tot = 0;
 
+        // if ghost monomers included, then force maxNTriEval == 1 to properly tally energy+virial
+        // should we just overwrite maxNTriEval_?
+        size_t _maxNTriEval = (use_ghost) ? 1 : maxNTriEval_;
+
         // Loop over all the trimers
         while (3 * nt_tot < trimers.size()) {
             i = (nt_tot + nt) * 3;
@@ -1677,7 +1895,7 @@ double System::Get3B(bool do_grads) {
             // since trimers are also ordered, means that no more trimers of that
             // type exist. Thus, do calculation, update m? and clear xyz
             if (monomers_[trimers[i]] != m1 || monomers_[trimers[i + 1]] != m2 || monomers_[trimers[i + 2]] != m3 ||
-                i == trimers.size() - 3 || nt == maxNTriEval_) {
+                i == trimers.size() - 3 || nt == _maxNTriEval) {
                 if (nt == 0) {
                     coord1.clear();
                     coord2.clear();
@@ -1690,7 +1908,7 @@ double System::Get3B(bool do_grads) {
 
                 // Fix trimer positions if pbc
                 if (use_pbc_) {
-                    systools::GetCloseTrimerImage(box_, nat_[trimers[nt_tot * 3]], nat_[trimers[nt_tot * 3 + 1]],
+                    systools::GetCloseTrimerImage(box_, box_inverse_, nat_[trimers[nt_tot * 3]], nat_[trimers[nt_tot * 3 + 1]],
                                                   nat_[trimers[nt_tot * 3 + 2]], nt, coord1.data(), coord2.data(),
                                                   coord3.data());
                 }
@@ -1722,9 +1940,15 @@ double System::Get3B(bool do_grads) {
                         std::vector<double> grad1(coord1.size(), 0.0);
                         std::vector<double> grad2(coord2.size(), 0.0);
                         std::vector<double> grad3(coord3.size(), 0.0);
-                        std::vector<double> virial(9,0.0); // declare virial tensor
+                        std::vector<double> virial(9, 0.0);  // declare virial tensor
                         // POLYNOMIALS
-                        e3b_pool[rank] += e3b::get_3b_energy(m1, m2, m3, nt, xyz1, xyz2, xyz3, grad1, grad2, grad3, &virial);
+                        double e = e3b::get_3b_energy(m1, m2, m3, nt, xyz1, xyz2, xyz3, grad1, grad2, grad3, &virial);
+
+                        double escale = 1.0;
+                        if (use_ghost)
+                            escale = (islocal_[trimers[i]] + islocal_[trimers[i + 1]] + islocal_[trimers[i + 2]]) *
+                                     one_third;
+                        e3b_pool[rank] += escale * e;
 
                         // Update gradients
                         size_t i0 = nt_tot * 3;
@@ -1746,13 +1970,18 @@ double System::Get3B(bool do_grads) {
                             }
                         }
                         // Virial Tensor
-                        for (size_t j=0; j<9; j++) {
-                            virial_pool[rank][j] += virial[j];
+                        for (size_t j = 0; j < 9; j++) {
+                            virial_pool[rank][j] += escale * virial[j];
                         }
 
                     } else {
                         // POLYNOMIALS
-                        e3b_pool[rank] += e3b::get_3b_energy(m1, m2, m3, nt, xyz1, xyz2, xyz3);
+                        double e = e3b::get_3b_energy(m1, m2, m3, nt, xyz1, xyz2, xyz3);
+                        double escale = 1.0;
+                        if (use_ghost)
+                            escale = (islocal_[trimers[i]] + islocal_[trimers[i + 1]] + islocal_[trimers[i + 2]]) *
+                                     one_third;
+                        e3b_pool[rank] += escale * e;
                     }
                 }
 
@@ -1798,12 +2027,12 @@ double System::Get3B(bool do_grads) {
     for (int i = 0; i < num_threads; i++) {
         e3b_t += e3b_pool[i];
     }
-    // Condensate virial                         
-    for (int i = 0; i < num_threads; i++) {  
-        for (size_t j = 0; j < 9; j++){          
-            virial_[j] += virial_pool[i][j];   
-        }                                        
-    }                                            
+    // Condensate virial
+    for (int i = 0; i < num_threads; i++) {
+        for (size_t j = 0; j < 9; j++) {
+            virial_[j] += virial_pool[i][j];
+        }
+    }
 
     return e3b_t;
 }
@@ -1959,7 +2188,29 @@ void System::SetVSites() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-double System::Dispersion(bool do_grads) {
+double System::Dispersion(bool do_grads, bool use_ghost) {
+    // Check if system has been initialized
+    // If not, throw exception
+    if (!initialized_) {
+        std::string text = std::string("System has not been initialized. ") +
+                           std::string("Dispersion Energy calculation not possible.");
+        throw CUException(__func__, __FILE__, __LINE__, text);
+    }
+
+    energy_ = 0.0;
+    std::fill(grad_.begin(), grad_.end(), 0.0);
+    std::fill(virial_.begin(), virial_.end(), 0.0);
+
+    SetPBC(box_);
+
+    energy_ = GetDispersion(do_grads, use_ghost);
+
+    return energy_;
+}
+  
+////////////////////////////////////////////////////////////////////////////////
+
+double System::DispersionPME(bool do_grads, bool use_ghost) {
     // Check if system has been initialized
     // If not, throw exception
     if (!initialized_) {
@@ -1974,14 +2225,14 @@ double System::Dispersion(bool do_grads) {
 
     SetPBC(box_);
 
-    energy_ = GetDispersion(do_grads);
+    energy_ = GetDispersionPME(do_grads, use_ghost);
 
     return energy_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-double System::Buckingham(bool do_grads) {
+double System::Buckingham(bool do_grads, bool use_ghost) {
     // Check if system has been initialized
     // If not, throw exception
     if (!initialized_) {
@@ -1992,11 +2243,11 @@ double System::Buckingham(bool do_grads) {
 
     energy_ = 0.0;
     std::fill(grad_.begin(), grad_.end(), 0.0);
-    std::fill(virial_.begin(),virial_.end(),0.0);
+    std::fill(virial_.begin(), virial_.end(), 0.0);
 
     SetPBC(box_);
 
-    energy_ = GetBuckingham(do_grads);
+    energy_ = GetBuckingham(do_grads, use_ghost);
 
     return energy_;
 }
@@ -2014,7 +2265,7 @@ double System::Electrostatics(bool do_grads) {
 
     energy_ = 0.0;
     std::fill(grad_.begin(), grad_.end(), 0.0);
-    std::fill(virial_.begin(),virial_.end(),0.0);
+    std::fill(virial_.begin(), virial_.end(), 0.0);
 
     SetPBC(box_);
 
@@ -2054,17 +2305,45 @@ void System::SetEwald(double alpha, double grid_density, int spline_order) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-double System::GetElectrostatics(bool do_grads) {
-    electrostaticE_.SetNewParameters(xyz_, chg_, chggrad_, pol_, polfac_, dipole_method_, do_grads, box_, cutoff2b_);
-    electrostaticE_.SetDipoleTolerance(diptol_);
-    electrostaticE_.SetDipoleMaxIt(maxItDip_); 
+void System::SetMPI(MPI_Comm comm, int nx, int ny, int nz) {
+#if HAVE_MPI == 1
+    mpi_initialized_ = true;
+    world_ = comm;
+    proc_grid_x_ = nx;
+    proc_grid_y_ = ny;
+    proc_grid_z_ = nz;
+#else
+    world_ = 0;
+    proc_grid_x_ = 1;
+    proc_grid_y_ = 1;
+    proc_grid_z_ = 1;
+#endif
+}
+  
+////////////////////////////////////////////////////////////////////////////////
 
-    return electrostaticE_.GetElectrostatics(grad_,&virial_);
+int System::TestMPI() {
+#if HAVE_MPI == 1
+    if(mpi_initialized_) return 1;
+    else return -1;
+#else
+    return -2;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-double System::GetDispersion(bool do_grads) {
+double System::GetElectrostatics(bool do_grads) {
+    electrostaticE_.SetNewParameters(xyz_, chg_, chggrad_, pol_, polfac_, dipole_method_, do_grads, box_, cutoff2b_);
+    electrostaticE_.SetDipoleTolerance(diptol_);
+    electrostaticE_.SetDipoleMaxIt(maxItDip_);
+
+    return electrostaticE_.GetElectrostatics(grad_, &virial_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+double System::GetDispersion(bool do_grads, bool use_ghost) {
     std::vector<double> xyz_real(3 * numat_);
 
     size_t count = 0;
@@ -2077,7 +2356,34 @@ double System::GetDispersion(bool do_grads) {
 
     dispersionE_.SetNewParameters(xyz_real, do_grads, cutoff2b_, box_);
     std::vector<double> real_grad(3 * numat_, 0.0);
-    double e = dispersionE_.GetDispersion(real_grad, &virial_);
+    double e = dispersionE_.GetDispersion(real_grad, &virial_, use_ghost);
+
+    count = 0;
+    for (size_t i = 0; i < nummon_; i++) {
+        for (size_t j = 0; j < 3 * nat_[i]; j++) {
+            grad_[first_index_[i] * 3 + j] += real_grad[count + j];
+        }
+        count += 3 * nat_[i];
+    }
+    return e;
+}
+  
+////////////////////////////////////////////////////////////////////////////////
+
+  double System::GetDispersionPME(bool do_grads, bool use_ghost) {
+    std::vector<double> xyz_real(3 * numat_);
+
+    size_t count = 0;
+    for (size_t i = 0; i < nummon_; i++) {
+        for (size_t j = 0; j < 3 * nat_[i]; j++) {
+            xyz_real[count + j] = xyz_[first_index_[i] * 3 + j];
+        }
+        count += 3 * nat_[i];
+    }
+
+    dispersionE_.SetNewParameters(xyz_real, do_grads, cutoff2b_, box_);
+    std::vector<double> real_grad(3 * numat_, 0.0);
+    double e = dispersionE_.GetDispersionPME(real_grad, &virial_, use_ghost);
 
     count = 0;
     for (size_t i = 0; i < nummon_; i++) {
@@ -2091,7 +2397,7 @@ double System::GetDispersion(bool do_grads) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-double System::GetBuckingham(bool do_grads) {
+double System::GetBuckingham(bool do_grads, bool use_ghost) {
     std::vector<double> xyz_real(3 * numat_);
 
     size_t count = 0;
@@ -2104,7 +2410,7 @@ double System::GetBuckingham(bool do_grads) {
 
     buckinghamE_.SetNewParameters(xyz_real, buck_pairs_, do_grads, cutoff2b_, box_);
     std::vector<double> real_grad(3 * numat_, 0.0);
-    double e = buckinghamE_.GetRepulsion(real_grad, &virial_);
+    double e = buckinghamE_.GetRepulsion(real_grad, &virial_, use_ghost);
 
     count = 0;
     for (size_t i = 0; i < nummon_; i++) {

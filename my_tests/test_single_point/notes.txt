@@ -1,0 +1,1 @@
+This structure occured during a geometry optimisation at 4GPa.
