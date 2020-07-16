@@ -22,14 +22,14 @@ def create_mbx_potential_variables(at_in):
     for at_name in at_name_string.split():#test_string_split:# 
         if at_name[0]=="O":
             if last_monomer=="CHHHH":
-                n_monomers_types+=str(num_ch4)+" CHHHH "
+                n_monomers_types+=str(num_ch4)+"_CHHHH_"
 
                 num_ch4=0
             num_h2o+=1
             last_monomer=at_name
         elif at_name[0]=="C":
             if last_monomer=="OHH":
-                n_monomers_types+=str(num_h2o)+" OHH "
+                n_monomers_types+=str(num_h2o)+"_OHH_"
 
                 num_h2o=0
             num_ch4+=1
@@ -38,10 +38,10 @@ def create_mbx_potential_variables(at_in):
             print ("Error: Problem with atoms' order.\n"+
                    "Please order atoms according to potential's rules")
     if last_monomer=="OHH":
-        n_monomers_types+=str(num_h2o)+" OHH"
+        n_monomers_types+=str(num_h2o)+"_OHH"
 
     elif last_monomer=="CHHHH":
-        n_monomers_types+=str(num_ch4)+" CHHHH"
+        n_monomers_types+=str(num_ch4)+"_CHHHH"
 
 
     return {"n_monomers_types": n_monomers_types, "nmon": nmon}
@@ -71,14 +71,14 @@ def create_mbx_potential_variables_co2_h2o(at_in):
     for at_name in at_name_string.split():#test_string_split:#
         if at_name[0]=="O":
             if last_monomer=="COO":
-                n_monomers_types+=str(num_co2)+" COO "
+                n_monomers_types+=str(num_co2)+"_COO_"
 
                 num_co2=0
             num_h2o+=1
             last_monomer=at_name
         elif at_name[0]=="C":
             if last_monomer=="OHH":
-                n_monomers_types+=str(num_h2o)+" OHH "
+                n_monomers_types+=str(num_h2o)+"_OHH_"
 
                 num_h2o=0
             num_co2+=1
@@ -87,10 +87,10 @@ def create_mbx_potential_variables_co2_h2o(at_in):
             print ("Error: Problem with atoms' order.\n"+
                    "Please order atoms according to potential's rules")
     if last_monomer=="OHH":
-        n_monomers_types+=str(num_h2o)+" OHH"
+        n_monomers_types+=str(num_h2o)+"_OHH"
 
     elif last_monomer=="COO":
-        n_monomers_types+=str(num_co2)+" COO"
+        n_monomers_types+=str(num_co2)+"_COO"
 
 
     return {"n_monomers_types": n_monomers_types, "nmon": nmon}
