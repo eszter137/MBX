@@ -1,0 +1,34 @@
+It seems this is not the right order of the box.
+
+errors:
+$ ./test_pbc_box_diff_order > test_pbc_box_diff_order.out
+terminate called after throwing an instance of 'CUException'
+  what():  ** ERROR ** C++ Exception in function SetPBC, in line 396 of file /home/es732/programs/MBX/src/bblock/system.cpp. Box size of 8 is not acceptable.
+
+Program received signal SIGABRT: Process abort signal.
+
+Backtrace for this error:
+#0  0x7f8828c542ed in ???
+#1  0x7f8828c53503 in ???
+#2  0x7f8828886f1f in ???
+#3  0x7f8828886e97 in ???
+#4  0x7f8828888800 in ???
+#5  0x7f882854b956 in ???
+#6  0x7f8828551ae5 in ???
+#7  0x7f8828551b20 in ???
+#8  0x7f8828551d53 in ???
+#9  0x7f882915b77b in _ZN6bblock6System6SetPBCESt6vectorIdSaIdEE
+	at /home/es732/programs/MBX/src/bblock/system.cpp:396
+#10  0x7f882915e42c in _ZN6bblock6System13SetUpFromJsonEN8nlohmann10basic_jsonISt3mapSt6vectorNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEblmdSaNS1_14adl_serializerEEE
+	at /home/es732/programs/MBX/src/bblock/system.cpp:855
+#11  0x7f8829160179 in _ZN6bblock6System13SetUpFromJsonEPc
+	at /home/es732/programs/MBX/src/bblock/system.cpp:945
+#12  0x7f88291b8db4 in initialize_system_
+	at /home/es732/programs/MBX/src/bblock/external_call.cpp:72
+#13  0x561f95340f5d in test
+	at /home/es732/programs/test_new_MBX/MBX/my_tests/test_nonorthogonal_cell/test_pbc_box_diff_order.f90:117
+#14  0x561f95341745 in main
+	at /home/es732/programs/test_new_MBX/MBX/my_tests/test_nonorthogonal_cell/test_pbc_box_diff_order.f90:157
+Aborted (core dumped)
+
+
