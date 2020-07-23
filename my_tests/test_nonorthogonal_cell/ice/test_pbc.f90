@@ -34,21 +34,16 @@ program test
 
   ! This will work for the test case, which contains a lithium monomer
   ! at the beggining, and then 6 water molecules
-  nmon = 74
+  nmon = 324 
   allocate(nats(nmon),monomers(nmon),box(9),virial(9))
 
-  do i=1,68
+  do i=1,324
     nats(i) = 3
     monomers(i) = "h2o"
   enddo
 
-  do i=69,74
-    nats(i) = 5
-    monomers(i) = "ch4"
-  enddo
-
   ! Set json file
-  json_file = 'mbx_box2.json'//CHAR(0)
+  json_file = 'mbx_pbc.json'//CHAR(0)
   ! Open file called input.xyz. 
   ! Contains the coordinates in XYZ format.
   ! Assumes halide at the end (because the C++ code does that)
@@ -119,11 +114,12 @@ program test
   write(*,*)
 
   box(:) = 0.0
-  !12.42121 0.0 0.0 -6.21061 10.75708 0.0 0.0 0.0 20.13129
-  box(1) = 12.42121
-  box(6) = -6.21061
-  box(5) = 10.75708
-  box(9) = 20.13129
+  box(1) = 23.34
+  box(4) = -9.15715
+  box(5) = 21.46863  
+  box(7) = -9.15715
+  box(8) = -13.86121 
+  box(9) = 16.39418 
 
   call get_energy_pbc(coord, n_at, box, Vpot)
   write(*,*) "Testing functions that use an array of the coordinates (PBC) "
