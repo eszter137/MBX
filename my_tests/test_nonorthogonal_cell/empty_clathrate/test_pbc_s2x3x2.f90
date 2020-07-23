@@ -34,17 +34,12 @@ program test
 
   ! This will work for the test case, which contains a lithium monomer
   ! at the beggining, and then 6 water molecules
-  nmon = 888
+  nmon = 816
   allocate(nats(nmon),monomers(nmon),box(9),virial(9))
 
   do i=1,816
     nats(i) = 3
     monomers(i) = "h2o"
-  enddo
-
-  do i=817,888
-    nats(i) = 5
-    monomers(i) = "ch4"
   enddo
 
   ! Set json file
