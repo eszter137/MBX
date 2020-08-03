@@ -658,7 +658,7 @@ void System::Initialize() {
     // TODO modify c6_long_range
     if(mpi_initialized_) dispersionE_.SetMPI(world_, proc_grid_x_, proc_grid_y_, proc_grid_z_);
     dispersionE_.Initialize(c6_lr_, xyz_real, monomers_, nat_, mon_type_count_, islocal_, true, box_);
-    buckinghamE_.Initialize(xyz_real, monomers_, nat_, mon_type_count_, islocal_, true, box_);
+    buckinghamE_.Initialize(xyz_real, monomers_, nat_, mon_type_count_, enforce_ttm_for_idx_, islocal_, true, box_);
 
     // We are done. Setting initialized_ to true
     initialized_ = true;
@@ -1004,6 +1004,71 @@ void System::SetUpFromJson(char *json_file) {
     ifjson.close();
 }
 
+std::string System::GetCurrentSystemConfig() {
+    std::stringstream ss;
+
+    ss <<  std::left << std::setw(25) << "Box:";
+    for (size_t i = 0; i < box_.size(); i++) {
+        ss << std::scientific << std::setprecision(4) << box_[i] << " ";
+    } 
+    ss << std::endl;
+
+    ss << std::left << std::setw(25) << "2B cutoff:" << cutoff2b_ << std::endl;
+    ss << std::left << std::setw(25) << "3B cutoff:" << cutoff3b_ << std::endl;
+    ss << std::left << std::setw(25) << "Max Eval Mon:" << maxNMonEval_ << std::endl;
+    ss << std::left << std::setw(25) << "Max Eval Dim:" << maxNDimEval_ << std::endl;
+    ss << std::left << std::setw(25) << "Max Eval Trim:" << maxNTriEval_ << std::endl;
+    ss << std::left << std::setw(25) << "Dipole Tol:" << diptol_ << std::endl;
+    ss << std::left << std::setw(25) << "Dipole Max Iter:" << maxItDip_ << std::endl;
+    ss << std::left << std::setw(25) << "Dipole Method:" << dipole_method_ << std::endl;
+    ss << std::left << std::setw(25) << "Ewald Alpha Elec:" << elec_alpha_ << std::endl;
+    ss << std::left << std::setw(25) << "Grid Dens Elec:" << elec_grid_density_ << std::endl;
+    ss << std::left << std::setw(25) << "Spline Order Elec:" << elec_spline_order_ << std::endl;
+    ss << std::left << std::setw(25) << "Ewald Alpha Disp:" << disp_alpha_ << std::endl;
+    ss << std::left << std::setw(25) << "Grid Dens Disp:" << disp_grid_density_ << std::endl;
+    ss << std::left << std::setw(25) << "Spline Order Disp:" << disp_spline_order_ << std::endl;
+
+    ss <<  std::left << std::setw(25) << "TTM-pairs:";
+    for (size_t i = 0; i < buck_pairs_.size(); i++) {
+        ss << "{" << buck_pairs_[i].first << "," << buck_pairs_[i].second << "} ";
+    }                                                                                                            
+    ss << std::endl;
+
+    ss <<  std::left << std::setw(25) << "Forcefield Mons:";    
+    for (size_t i = 0; i < ff_mons_.size(); i++) { 
+        ss << ff_mons_[i] << " ";             
+    }                                                                                                            
+    ss << std::endl;
+
+    ss <<  std::left << std::setw(25) << "Ignore 1B poly:";    
+    for (size_t i = 0; i < ignore_1b_poly_.size(); i++) {   
+        ss << ignore_1b_poly_[i] << " ";
+    }
+    ss << std::endl;
+
+    ss <<  std::left << std::setw(25) << "Ignore 2B poly:";    
+    for (size_t i = 0; i < ignore_2b_poly_.size(); i++) {   
+        ss << "{";
+        for (size_t j = 0; j < ignore_2b_poly_[i].size(); j++) {
+          ss << ignore_2b_poly_[i][j] << " ";
+        }
+        ss << "} ";
+    }
+    ss << std::endl;
+
+    ss << std::left << std::setw(25) << "Ignore 3B poly:";    
+    for (size_t i = 0; i < ignore_3b_poly_.size(); i++) {   
+        ss << "{";
+        for (size_t j = 0; j < ignore_3b_poly_[i].size(); j++) {
+          ss << ignore_3b_poly_[i][j] << " ";
+        }
+        ss << "} ";
+    }
+    ss << std::endl;
+
+    return ss.str();
+}
+
 void System::AddMonomerInfo() {
     // If xyz_ is empty, not possible to add any information
     if (xyz_.size() < 3) {
@@ -1230,9 +1295,9 @@ double System::Energy(bool do_grads) {
 
     // If monomers are too distorted, skip 2b and 3b calculation
     // Return only
-    if (!allMonGood_) {
-        return e1b;
-    }
+    //if (!allMonGood_) {
+    //    return e1b;
+    //}
 
 #ifdef TIMING
     auto t2 = std::chrono::high_resolution_clock::now();
@@ -1440,7 +1505,9 @@ double System::Get1B(bool do_grads) {
     // Loop overall the monomers and get their energy
     size_t curr_mon_type = 0;
     size_t current_coord = 0;
+    size_t current_mon = 0;
     double e1b = 0.0;
+    enforce_ttm_for_idx_.clear();
 
     size_t indx = 0;
 
@@ -1455,10 +1522,17 @@ double System::Get1B(bool do_grads) {
         }
 
         while (istart < mon_type_count_[k].second) {
+            std::vector<size_t> mon_idxs;
             iend = std::min(istart + maxNMonEval_, mon_type_count_[k].second);
+            std::vector<size_t> indexes;
             size_t nmon = 0;
-            for (size_t i = istart; i < iend; i++)
-                if (islocal_[indx + i]) nmon++;
+            for (size_t i = istart; i < iend; i++) {
+                if (islocal_[indx + i]) {
+                   mon_idxs.push_back(current_mon);
+                   nmon++;
+                }
+                current_mon++;  
+            }
 
             size_t ncoord = 3 * nat_[curr_mon_type] * nmon;
             std::string mon = mon_type_count_[k].first;
@@ -1480,7 +1554,7 @@ double System::Get1B(bool do_grads) {
 
             // Get energy of the chunk as function of monomer
             if (do_grads) {
-                e1b += e1b::get_1b_energy(mon, nmon, xyz, grad2, allMonGood_, &virial_);
+                e1b += e1b::get_1b_energy(mon, nmon, xyz, grad2, indexes, &virial_);
 
                 // Reorganize gradients
                 size_t ii = 0;
@@ -1494,7 +1568,11 @@ double System::Get1B(bool do_grads) {
                     }
                 }
             } else {
-                e1b += e1b::get_1b_energy(mon, nmon, xyz, allMonGood_);
+                e1b += e1b::get_1b_energy(mon, nmon, xyz, indexes);
+            }
+
+            for (size_t i = 0; i < indexes.size(); i++) {
+                enforce_ttm_for_idx_.push_back(mon_idxs[indexes[i]]);
             }
 
             istart = iend;
@@ -1619,14 +1697,20 @@ double System::Get2B(bool do_grads, bool use_ghost) {
         size_t i = 0;
         size_t nd = 0;
         size_t nd_tot = 0;
+        size_t nd_bad = 0;
 
         // Loop over all the dimers
         while (2 * nd_tot < dimers.size()) {
-            i = (nd_tot + nd) * 2;
+            i = (nd_tot + nd_bad + nd) * 2;
+            if (i  >= dimers.size()) break;
+            bool m1_is_good = true;
+            bool m2_is_good = true;
             // Check if we are still in the same type of pair
             // We will pas the entire batch in the 2b calculator, but they need
             // to be the same pair (e.g., h2o-h2o, h2o-i, cl-na...)
-            if (monomers_[dimers[i]] == m1 && monomers_[dimers[i + 1]] == m2) {
+            if (std::find(enforce_ttm_for_idx_.begin(), enforce_ttm_for_idx_.end(), dimers[i]) !=  enforce_ttm_for_idx_.end()) m1_is_good = false;
+            if (std::find(enforce_ttm_for_idx_.begin(), enforce_ttm_for_idx_.end(), dimers[i+1]) !=  enforce_ttm_for_idx_.end()) m2_is_good = false;
+            if (monomers_[dimers[i]] == m1 && monomers_[dimers[i + 1]] == m2 && m1_is_good && m2_is_good) {
                 // Push the coordinates
                 for (size_t j = 0; j < 3 * nat_[dimers[i]]; j++) {
                     xyz1.push_back(xyz_[3 * first_index_[dimers[i]] + j]);
@@ -1637,13 +1721,15 @@ double System::Get2B(bool do_grads, bool use_ghost) {
                     grad2.push_back(0.0);
                 }
                 nd++;
+
             }
+            if (!m1_is_good || !m2_is_good) nd_bad++;
 
             // If one of the monomers is different as the previous one
             // since dimers are also ordered, means that no more dimers of that
             // type exist. Thus, do calculation, update m? and clear xyz
             if (monomers_[dimers[i]] != m1 || monomers_[dimers[i + 1]] != m2 || i == dimers.size() - 2 ||
-                nd == maxNDimEval_) {
+                nd == maxNDimEval_ || !m1_is_good || !m2_is_good) {
                 if (nd == 0) {
                     xyz1.clear();
                     xyz2.clear();
@@ -1669,12 +1755,14 @@ double System::Get2B(bool do_grads, bool use_ghost) {
                     std::sort(v1.begin(), v1.end());
                     std::sort(v2.begin(), v2.end());
 
+
                     if (v1 == v2) {
                         use_poly = false;
                         break;
                     }
-                }
 
+                }
+               
                 if (use_poly) {
                     if (do_grads) {
                         // POLYNOMIALS
@@ -1704,8 +1792,9 @@ double System::Get2B(bool do_grads, bool use_ghost) {
                 }
 
                 // Update loop variables and clear other temporary variable
-                nd_tot += nd;
+                nd_tot += nd + nd_bad;
                 nd = 0;
+                nd_bad = 0;
                 xyz1.clear();
                 xyz2.clear();
                 grad1.clear();
@@ -1909,8 +1998,8 @@ double System::Get3B(bool do_grads, bool use_ghost) {
                 // Fix trimer positions if pbc
                 if (use_pbc_) {
                     systools::GetCloseTrimerImage(box_, box_inverse_, nat_[trimers[nt_tot * 3]], nat_[trimers[nt_tot * 3 + 1]],
-                                                  nat_[trimers[nt_tot * 3 + 2]], nt, coord1.data(), coord2.data(),
-                                                  coord3.data());
+                                                  nat_[trimers[nt_tot * 3 + 2]], nt, coord1, coord2,
+                                                  coord3);
                 }
 
                 // Check if this pair needs to use MB-nrg
@@ -2408,7 +2497,8 @@ double System::GetBuckingham(bool do_grads, bool use_ghost) {
         count += 3 * nat_[i];
     }
 
-    buckinghamE_.SetNewParameters(xyz_real, buck_pairs_, do_grads, cutoff2b_, box_);
+    buckinghamE_.SetNewParameters(xyz_real, buck_pairs_, enforce_ttm_for_idx_, do_grads, cutoff2b_, box_);
+    //buckinghamE_.SetNewParameters(xyz_real, buck_pairs_, do_grads, cutoff2b_, box_);
     std::vector<double> real_grad(3 * numat_, 0.0);
     double e = buckinghamE_.GetRepulsion(real_grad, &virial_, use_ghost);
 

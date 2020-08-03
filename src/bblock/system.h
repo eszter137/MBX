@@ -462,6 +462,8 @@ class System {
      */
     void AddMonomer(std::vector<double> xyz, std::vector<std::string> atoms, std::string id, size_t islocal = 1);
 
+    std::string GetCurrentSystemConfig();
+
     /**
      * Adds a molecule to the system. A molecule, in the context of this
      * software, is a set of indexes of monomers that belong to the same
@@ -1216,6 +1218,11 @@ to be the same.
      * when calculating the 2b polynomials.
      */
     std::vector<std::vector<std::string> > ignore_2b_poly_;
+
+    /**
+     * This vector will have the indexes of monomers for which the polynomials wont be calculated due to a hig deformation. This includes 2b and 3b that involve the monomer.
+     */
+    std::vector<size_t> enforce_ttm_for_idx_;
 
     /**
      * This vector of vectors contains the trimers of monomer types that will be ignored when

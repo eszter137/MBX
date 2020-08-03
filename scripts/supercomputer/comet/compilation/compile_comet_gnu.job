@@ -15,9 +15,17 @@ CMAKE_EXE=$HOME/codes/cmake-3.14.3/bin/cmake
 
 cd $MBX_HOME 
 
+module load gnu
+
 rm -rf build install
-$CMAKE_EXE -DCMAKE_BUILD_TYPE=Debug -DUSE_OPENMP=True -DCMAKE_CXX_FLAGS=" -fPIC -O2 -Wall -ftree-vectorize -ftree-vectorizer-verbose=2" -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -H. -Bbuild
+$CMAKE_EXE -DCMAKE_BUILD_TYPE=Debug -DUSE_OPENMP=True -DCMAKE_CXX_FLAGS=" -fPIC -O2 -Wall -ftree-vectorize" -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -H. -Bbuild
 cd build
 make CXX=g++ CC=gcc
 make install
 cd ../
+
+export MBX_HOME=$PWD
+cd plugins/i-pi/src/main/
+cp Makefile_comet_gnu Makefile
+make
+cd -
