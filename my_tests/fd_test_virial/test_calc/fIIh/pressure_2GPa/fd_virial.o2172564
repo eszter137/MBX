@@ -1,0 +1,143 @@
+-- New Job --
+/home/es732/test_MBX/single_point/pbc/test_fd/virial/fIIh/pressure_2GPa
+**WARNING** "ff_mons" is not defined in json file. Using empty list.
+**WARNING** "ignore_1b_poly" is not defined in json file. Using empty list.
+**WARNING** "connectivity_file" is not defined in json file. Not using 1B TTM-nrg.
+[[-1.11752298e+03 -2.03649707e-06 -5.97715581e-05]
+ [-2.03649707e-06 -1.33947457e+03 -6.41936973e-06]
+ [-5.97715581e-05 -6.41936973e-06 -1.41649091e+03]]
+virial test with  0.1  done
+virial test with  0.01  done
+virial test with  0.001  done
+virial test with  0.0001  done
+virial test with  1e-05  done
+virial test with  1e-06  done
+virial test with  1e-07  done
+virial test with  1e-08  done
+virial test with  1e-09  done
+**WARNING** "ff_mons" is not defined in json file. Using empty list.
+**WARNING** "ignore_1b_poly" is not defined in json file. Using empty list.
+**WARNING** "connectivity_file" is not defined in json file. Not using 1B TTM-nrg.
+[[-6.41046859e+02 -1.74433296e-06  3.65894277e-05]
+ [-1.74433296e-06 -1.12373403e+03 -5.48403248e-06]
+ [ 3.65894277e-05 -5.48403248e-06 -1.09721256e+03]]
+virial test with  0.1  done
+virial test with  0.01  done
+virial test with  0.001  done
+virial test with  0.0001  done
+virial test with  1e-05  done
+virial test with  1e-06  done
+virial test with  1e-07  done
+virial test with  1e-08  done
+WARNING: Potential_calc: cutoff of Atoms object (-1.0000000000000000) < Potential cutoff (9.0000000000000000) - increasing it now
+ Virial / orig units -0.25770692432188225E+005 -0.46962738438072194E-004 -0.13783648847187635E-002 -0.46962738438072194E-004 -0.30889017631032468E+005 -0.14803418381337252E-003 -0.13783648847187635E-002 -0.14803418381337252E-003 -0.32665056609996602E+005
+ E / kcal_mol-17594.547144921748
+ E / kcal_mol-21028.765412036577
+ E / kcal_mol-17019.092219236019
+ E / kcal_mol-21434.566617602773
+ E / kcal_mol-17040.531196688276
+ E / kcal_mol-22282.076168273699
+ E / kcal_mol-23141.795588349472
+ E / kcal_mol-23655.355028130394
+ E / kcal_mol-23089.639816732699
+ E / kcal_mol-23705.615142745992
+ E / kcal_mol-23075.612070143201
+ E / kcal_mol-23727.592432689336
+ E / kcal_mol-23412.484486226083
+ E / kcal_mol-23464.024063640012
+ E / kcal_mol-23407.356841888755
+ E / kcal_mol-23469.133060891541
+ E / kcal_mol-23405.620308109093
+ E / kcal_mol-23470.949098161134
+ E / kcal_mol-23436.074105581931
+ E / kcal_mol-23441.228242272133
+ E / kcal_mol-23435.562179834589
+ E / kcal_mol-23441.739981539729
+ E / kcal_mol-23435.384973206885
+ E / kcal_mol-23441.917983204032
+ E / kcal_mol-23438.397435983003
+ E / kcal_mol-23438.912849830936
+ E / kcal_mol-23438.346251797426
+ E / kcal_mol-23438.964032147815
+ E / kcal_mol-23438.328495381764
+ E / kcal_mol-23438.981796516313
+ E / kcal_mol-23438.629411904061
+ E / kcal_mol-23438.680953288429
+ E / kcal_mol-23438.624293568733
+ E / kcal_mol-23438.686071601380
+ E / kcal_mol-23438.622517568492
+ E / kcal_mol-23438.687847682515
+ E / kcal_mol-23438.652605924966
+ E / kcal_mol-23438.657760059337
+ E / kcal_mol-23438.652094092729
+ E / kcal_mol-23438.658271893073
+ E / kcal_mol-23438.651916485356
+ E / kcal_mol-23438.658449499573
+ E / kcal_mol-23438.654925291878
+ E / kcal_mol-23438.655440705050
+ E / kcal_mol-23438.654874108935
+ E / kcal_mol-23438.655491888290
+ E / kcal_mol-23438.654856347905
+ E / kcal_mol-23438.655509644530
+ E / kcal_mol-23438.655157227557
+ E / kcal_mol-23438.655208767945
+ E / kcal_mol-23438.655152105708
+ E / kcal_mol-23438.655213884434
+ E / kcal_mol-23438.655150330240
+ E / kcal_mol-23438.655215661413
+ Virial / orig units -0.14782891860956595E+005 -0.40225274063221406E-004  0.84377225469989270E-003 -0.40225274063221406E-004 -0.25913922659700645E+005 -0.12646479428224389E-003  0.84377225469989270E-003 -0.12646479428224389E-003 -0.25302323026258236E+005
+ E / kcal_mol-13479.557684275456
+ E / kcal_mol-14261.282912664472
+ E / kcal_mol-12716.018442749726
+ E / kcal_mol-16148.968897057614
+ E / kcal_mol-12871.566941376776
+ E / kcal_mol-16662.314086470502
+ E / kcal_mol-18501.464517413282
+ E / kcal_mol-18794.841917686921
+ E / kcal_mol-18395.050179744721
+ E / kcal_mol-18911.545235908474
+ E / kcal_mol-18403.837684633254
+ E / kcal_mol-18908.598055256829
+ E / kcal_mol-18679.614876414438
+ E / kcal_mol-18709.178424041038
+ E / kcal_mol-18668.535170699666
+ E / kcal_mol-18720.361221384072
+ E / kcal_mol-18669.175718044338
+ E / kcal_mol-18719.779075666214
+ E / kcal_mol-18693.380848882793
+ E / kcal_mol-18696.337425029764
+ E / kcal_mol-18692.268261039429
+ E / kcal_mol-18697.451043771536
+ E / kcal_mol-18692.329712756542
+ E / kcal_mol-18697.390176071971
+ E / kcal_mol-18694.715932890962
+ E / kcal_mol-18695.011590727183
+ E / kcal_mol-18694.604627735807
+ E / kcal_mol-18695.122906186305
+ E / kcal_mol-18694.610746651382
+ E / kcal_mol-18695.116793113972
+ E / kcal_mol-18694.849025165633
+ E / kcal_mol-18694.878590948145
+ E / kcal_mol-18694.837894185483
+ E / kcal_mol-18694.889722028198
+ E / kcal_mol-18694.838505812637
+ E / kcal_mol-18694.889110461205
+ E / kcal_mol-18694.862330231539
+ E / kcal_mol-18694.865286805194
+ E / kcal_mol-18694.861217129393
+ E / kcal_mol-18694.866399909864
+ E / kcal_mol-18694.861278285196
+ E / kcal_mol-18694.866338752785
+ E / kcal_mol-18694.863660696243
+ E / kcal_mol-18694.863956353918
+ E / kcal_mol-18694.863549386886
+ E / kcal_mol-18694.864067663817
+ E / kcal_mol-18694.863555502634
+ E / kcal_mol-18694.864061544336
+ E / kcal_mol-18694.863793742443
+ E / kcal_mol-18694.863823307460
+ E / kcal_mol-18694.863782607452
+virial test with  1e-09  done
+ E / kcal_mol-18694.863834436168
+ E / kcal_mol-18694.863783219796
+ E / kcal_mol-18694.863833825628

@@ -55,6 +55,8 @@ d_list=[0.1,0.01,0.001,0.0001,0.00001,0.000001,0.0000001,0.000000001]
 
 #version_list=["mbx_pbc_no_ww_www_mww","mbx_pbc_no_pips","mbx_pbc"]
 version_list=["mbx_pbc_no_2b","mbx_pbc_no_3b","mbx_pbc_no_pips","mbx_pbc"]
+version_list=["mbx_pbc_no_pips"]
+#version_list=["mbx_pbc_no_3b","mbx_pbc_no_pips","mbx_pbc"]
 
 dict_version_d_virial=OrderedDict([(version,
                                     OrderedDict([(d, [[np.NaN, np.NaN, np.NaN], [np.NaN, np.NaN, np.NaN], [np.NaN, np.NaN, np.NaN]])

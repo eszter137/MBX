@@ -1,0 +1,73 @@
+-- New Job --
+/home/es732/test_MBX/single_point/pbc/test_fd/virial/fIIh/pressure_2GPa
+**WARNING** "ff_mons" is not defined in json file. Using empty list.
+**WARNING** "ignore_1b_poly" is not defined in json file. Using empty list.
+**WARNING** "connectivity_file" is not defined in json file. Not using 1B TTM-nrg.
+[[-1.82871463e+03 -2.18763606e-06 -4.56208472e-05]
+ [-2.18763606e-06 -2.48499380e+03 -6.31562674e-06]
+ [-4.56208472e-05 -6.31562674e-06 -2.43520331e+03]]
+virial test with  0.1  done
+virial test with  0.01  done
+virial test with  0.001  done
+virial test with  0.0001  done
+virial test with  1e-05  done
+virial test with  1e-06  done
+virial test with  1e-07  done
+virial test with  1e-08  done
+virial test with  1e-09  done
+WARNING: Potential_calc: cutoff of Atoms object (-1.0000000000000000) < Potential cutoff (9.0000000000000000) - increasing it now
+ Virial / orig units -0.42171161563009693E+005 -0.50448086448905138E-004 -0.10520417364791104E-002 -0.50448086448905138E-004 -0.57305318733971042E+005 -0.14564181367130049E-003 -0.10520417364791104E-002 -0.14564181367130049E-003 -0.56157122872382111E+005
+ E / kcal_mol-22067.653690537525
+ E / kcal_mol-28906.110982938786
+ E / kcal_mol-20843.480279355783
+ E / kcal_mol-31251.584738198715
+ E / kcal_mol-21051.241943449968
+ E / kcal_mol-31526.852824554324
+ E / kcal_mol-28826.261589686546
+ E / kcal_mol-29668.117891219204
+ E / kcal_mol-28679.690528431558
+ E / kcal_mol-29824.765930398986
+ E / kcal_mol-28693.076828428901
+ E / kcal_mol-29815.468169733125
+ E / kcal_mol-29241.404760826343
+ E / kcal_mol-29325.745516703817
+ E / kcal_mol-29226.320638543195
+ E / kcal_mol-29340.930234003445
+ E / kcal_mol-29227.489140927661
+ E / kcal_mol-29339.802633563508
+ E / kcal_mol-29279.721767451221
+ E / kcal_mol-29288.155998207516
+ E / kcal_mol-29278.208854449702
+ E / kcal_mol-29289.669917149447
+ E / kcal_mol-29278.323878400864
+ E / kcal_mol-29289.555302220775
+ E / kcal_mol-29283.520808646303
+ E / kcal_mol-29284.364231877556
+ E / kcal_mol-29283.369472103121
+ E / kcal_mol-29284.515578476319
+ E / kcal_mol-29283.380956106037
+ E / kcal_mol-29284.504098566420
+ E / kcal_mol-29283.900385474652
+ E / kcal_mol-29283.984727797008
+ E / kcal_mol-29283.885251366923
+ E / kcal_mol-29283.999862001619
+ E / kcal_mol-29283.886399581908
+ E / kcal_mol-29283.998713828689
+ E / kcal_mol-29283.938339884422
+ E / kcal_mol-29283.946774112468
+ E / kcal_mol-29283.936826469762
+ E / kcal_mol-29283.948287530045
+ E / kcal_mol-29283.936941285632
+ E / kcal_mol-29283.948172712946
+ E / kcal_mol-29283.942135293299
+ E / kcal_mol-29283.942978715881
+ E / kcal_mol-29283.941983951976
+ E / kcal_mol-29283.943130057538
+ E / kcal_mol-29283.941995433284
+ E / kcal_mol-29283.943118571508
+ E / kcal_mol-29283.942514833274
+ E / kcal_mol-29283.942599174508
+ E / kcal_mol-29283.942499695426
+ E / kcal_mol-29283.942614306954
+ E / kcal_mol-29283.942500844139
+ E / kcal_mol-29283.942613159561
