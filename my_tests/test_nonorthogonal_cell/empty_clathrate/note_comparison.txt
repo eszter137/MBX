@@ -1,0 +1,2 @@
+-10563.995233861793/2448*3264 = -14085.3269785
+that is a 0.33 % difference from -14132.907843597186. it might be due to the not exact conversion to the orthogonal cell. 
