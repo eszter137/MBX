@@ -31,6 +31,10 @@ enum {
       MBXT_UPDATE_XYZ,
       MBXT_INIT_FULL,
       MBXT_UPDATE_XYZ_FULL,
+      MBXT_INIT_PME,
+      MBXT_UPDATE_XYZ_PME,
+      MBXT_INIT_LOCAL,
+      MBXT_UPDATE_XYZ_LOCAL,
       MBXT_E1B,
       MBXT_E2B_LOCAL,
       MBXT_E2B_GHOST,
@@ -42,6 +46,18 @@ enum {
       MBXT_ELE,
       MBXT_ACCUMULATE_F,
       MBXT_ACCUMULATE_F_FULL,
+      MBXT_ACCUMULATE_F_PME,
+      MBXT_ACCUMULATE_F_LOCAL,
+
+      MBXT_ELE_PERMDIP_REAL,
+      MBXT_ELE_PERMDIP_PME,
+      
+      MBXT_ELE_DIPFIELD_REAL,
+      MBXT_ELE_DIPFIELD_PME,
+      
+      MBXT_ELE_GRAD_REAL,
+      MBXT_ELE_GRAD_PME,
+      MBXT_ELE_GRAD_FIN,
 
       MBXT_NUM_TIMERS
 };
@@ -78,8 +94,15 @@ class FixMBX : public Fix {
   bigint ngroup;
 
   bool mbx_mpi_enabled;
-  bool mbx_write_warnings;
   
+  bool first_step;
+  
+  int use_json;
+  char * json_file;
+  std::string json_settings;
+
+  int print_settings;
+
   int num_mol_types;       // # of unique molecule types
   int num_molecules;       // total # of molecules
   int * num_mols;          // array of # of molecules of each type
@@ -91,10 +114,6 @@ class FixMBX : public Fix {
   int * mol_anchor;   // per-atom array 1/0 if anchor atom of a molecule
   int * mol_local;    // per-molecule array 1/0 if molecule has at least one local particle
 
-  int use_json;
-  char * json_file;
-  std::string json_settings;
-  
   int mbx_num_atoms;
   int mbx_num_atoms_full;
   int mbx_num_atoms_local;
@@ -126,12 +145,12 @@ class FixMBX : public Fix {
   
   void mbx_init();
   void mbx_init_full();
-  //  void mbx_init_local();
+  void mbx_init_local();
   void mbx_init_pme();
   
   void mbx_update_xyz();
   void mbx_update_xyz_full();
-  //  void mbx_update_xyz_local();
+  void mbx_update_xyz_local();
   void mbx_update_xyz_pme();
   
   virtual int pack_forward_comm(int, int *, double *, int, int *);

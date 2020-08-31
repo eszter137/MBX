@@ -4,8 +4,8 @@
 
 namespace mbnrg_A1B4_C1D2_C1D2_deg3 {
 
-mbnrg_A1B4_C1D2_C1D2_deg3_v1::mbnrg_A1B4_C1D2_C1D2_deg3_v1(const std::string mon1, const std::string mon2, const std::string mon3) {
-
+mbnrg_A1B4_C1D2_C1D2_deg3_v1::mbnrg_A1B4_C1D2_C1D2_deg3_v1(const std::string mon1, const std::string mon2,
+                                                           const std::string mon3) {
     // =====>> BEGIN SECTION CONSTRUCTOR <<=====
     // =>> PASTE RIGHT BELOW THIS LINE <==
     if (mon1 == "ch4" and mon2 == "h2o" and mon3 == "h2o") {
@@ -1283,16 +1283,15 @@ mbnrg_A1B4_C1D2_C1D2_deg3_v1::mbnrg_A1B4_C1D2_C1D2_deg3_v1(const std::string mon
 
 //----------------------------------------------------------------------------//
 
-double mbnrg_A1B4_C1D2_C1D2_deg3_v1::f_switch(const double r, double& g)
-{
+double mbnrg_A1B4_C1D2_C1D2_deg3_v1::f_switch(const double r, double& g) {
     if (r > m_ro) {
         g = 0.0;
         return 0.0;
     } else if (r > m_ri) {
-        const double t1 = M_PI/(m_ro - m_ri);
-        const double x = (r - m_ri)*t1;
-        g = - std::sin(x)*t1/2.0;
-        return (1.0 + std::cos(x))/2.0;
+        const double t1 = M_PI / (m_ro - m_ri);
+        const double x = (r - m_ri) * t1;
+        g = -std::sin(x) * t1 / 2.0;
+        return (1.0 + std::cos(x)) / 2.0;
     } else {
         g = 0.0;
         return 1.0;
@@ -1301,46 +1300,36 @@ double mbnrg_A1B4_C1D2_C1D2_deg3_v1::f_switch(const double r, double& g)
 
 //----------------------------------------------------------------------------//
 
- double mbnrg_A1B4_C1D2_C1D2_deg3_v1::eval(const double *xyz1, const double *xyz2, const double *xyz3, const size_t n) {
-    std::vector<double> energies(n,0.0);
-    std::vector<double> energies_sw(n,0.0);
+double mbnrg_A1B4_C1D2_C1D2_deg3_v1::eval(const double* xyz1, const double* xyz2, const double* xyz3, const size_t n) {
+    std::vector<double> energies(n, 0.0);
+    std::vector<double> energies_sw(n, 0.0);
 
     std::vector<double> xyz(33);
     double sw = 0.0;
     polynomial my_poly;
 
     for (size_t j = 0; j < n; j++) {
-        const double *mon1 = xyz1 + 15*j;
-        const double *mon2 = xyz2 + 9*j;
-        const double *mon3 = xyz3 + 9*j;
+        const double* mon1 = xyz1 + 15 * j;
+        const double* mon2 = xyz2 + 9 * j;
+        const double* mon3 = xyz3 + 9 * j;
 
+        const double d12[3] = {mon1[0] - mon2[0], mon1[1] - mon2[1], mon1[2] - mon2[2]};
 
-        const double d12[3] =
-                         {mon1[0] - mon2[0],
-                          mon1[1] - mon2[1],
-                          mon1[2] - mon2[2]};
-
-        const double d12rsq = d12[0]*d12[0] + d12[1]*d12[1] + d12[2]*d12[2];
+        const double d12rsq = d12[0] * d12[0] + d12[1] * d12[1] + d12[2] * d12[2];
         const double d12r = std::sqrt(d12rsq);
 
-        const double d13[3] =
-                         {mon1[0] - mon3[0],
-                          mon1[1] - mon3[1],
-                          mon1[2] - mon3[2]};
+        const double d13[3] = {mon1[0] - mon3[0], mon1[1] - mon3[1], mon1[2] - mon3[2]};
 
-        const double d13rsq = d13[0]*d13[0] + d13[1]*d13[1] + d13[2]*d13[2];
+        const double d13rsq = d13[0] * d13[0] + d13[1] * d13[1] + d13[2] * d13[2];
         const double d13r = std::sqrt(d13rsq);
 
-        const double d23[3] =
-                         {mon2[0] - mon3[0],
-                          mon2[1] - mon3[1],
-                          mon2[2] - mon3[2]};
+        const double d23[3] = {mon2[0] - mon3[0], mon2[1] - mon3[1], mon2[2] - mon3[2]};
 
-        const double d23rsq = d23[0]*d23[0] + d23[1]*d23[1] + d23[2]*d23[2];
+        const double d23rsq = d23[0] * d23[0] + d23[1] * d23[1] + d23[2] * d23[2];
         const double d23r = std::sqrt(d23rsq);
 
-        if (true  && d12r > m_ro  && d13r > m_ro  && d23r > m_ro ) {
-             continue;
+        if (true && d12r > m_ro && d13r > m_ro && d23r > m_ro) {
+            continue;
         }
 
         std::copy(mon1, mon1 + 15, xyz.begin() + 0);
@@ -1348,7 +1337,6 @@ double mbnrg_A1B4_C1D2_C1D2_deg3_v1::f_switch(const double r, double& g)
         std::copy(mon2, mon2 + 9, xyz.begin() + 15);
 
         std::copy(mon3, mon3 + 9, xyz.begin() + 24);
-
 
         const double* coords_A_1_a = xyz.data() + 0;
 
@@ -1372,12 +1360,10 @@ double mbnrg_A1B4_C1D2_C1D2_deg3_v1::f_switch(const double r, double& g)
 
         const double* coords_D_4_c = xyz.data() + 30;
 
+        double w12 = -9.721486914088159e-02;  // from MBpol
+        double w13 = -9.721486914088159e-02;
+        double wcross = 9.859272078406150e-02;
 
-        double w12 =     -9.721486914088159e-02;  //from MBpol
-        double w13 =     -9.721486914088159e-02;
-        double wcross =   9.859272078406150e-02;
-
-    
         variable vs[55];
 
         double xs[55];
@@ -1445,66 +1431,54 @@ double mbnrg_A1B4_C1D2_C1D2_deg3_v1::f_switch(const double r, double& g)
         double gsw23 = 0.0;
         double sw23 = f_switch(d23r, gsw23);
 
-        sw = sw12*sw13 + sw12*sw23 + sw13*sw23;
+        sw = sw12 * sw13 + sw12 * sw23 + sw13 * sw23;
 
-        energies[j] = my_poly.eval(xs,coefficients.data());
-        energies_sw[j] = energies[j]*sw;
-
+        energies[j] = my_poly.eval(xs, coefficients.data());
+        energies_sw[j] = energies[j] * sw;
     }
 
     double energy = 0.0;
-    for (size_t i = 0; i < n; i++)
-        energy += energies_sw[i];
+    for (size_t i = 0; i < n; i++) energy += energies_sw[i];
 
     return energy;
-
 }
 
 //----------------------------------------------------------------------------//
 
-double mbnrg_A1B4_C1D2_C1D2_deg3_v1::eval(const double *xyz1, const double *xyz2, const double *xyz3, double *grad1, double *grad2, double *grad3 , const size_t n, std::vector<double> *virial) {
-    std::vector<double> energies(n,0.0);
-    std::vector<double> energies_sw(n,0.0);
+double mbnrg_A1B4_C1D2_C1D2_deg3_v1::eval(const double* xyz1, const double* xyz2, const double* xyz3, double* grad1,
+                                          double* grad2, double* grad3, const size_t n, std::vector<double>* virial) {
+    std::vector<double> energies(n, 0.0);
+    std::vector<double> energies_sw(n, 0.0);
 
     std::vector<double> xyz(33);
     double sw = 0.0;
     polynomial my_poly;
 
     for (size_t j = 0; j < n; j++) {
-        const double *mon1 = xyz1 + 15*j;
-        const double *mon2 = xyz2 + 9*j;
-        const double *mon3 = xyz3 + 9*j;
+        const double* mon1 = xyz1 + 15 * j;
+        const double* mon2 = xyz2 + 9 * j;
+        const double* mon3 = xyz3 + 9 * j;
 
+        const double d12[3] = {mon1[0] - mon2[0], mon1[1] - mon2[1], mon1[2] - mon2[2]};
 
-        const double d12[3] =
-                         {mon1[0] - mon2[0],
-                          mon1[1] - mon2[1],
-                          mon1[2] - mon2[2]};
-
-        const double d12rsq = d12[0]*d12[0] + d12[1]*d12[1] + d12[2]*d12[2];
+        const double d12rsq = d12[0] * d12[0] + d12[1] * d12[1] + d12[2] * d12[2];
         const double d12r = std::sqrt(d12rsq);
 
-        const double d13[3] =
-                         {mon1[0] - mon3[0],
-                          mon1[1] - mon3[1],
-                          mon1[2] - mon3[2]};
+        const double d13[3] = {mon1[0] - mon3[0], mon1[1] - mon3[1], mon1[2] - mon3[2]};
 
-        const double d13rsq = d13[0]*d13[0] + d13[1]*d13[1] + d13[2]*d13[2];
+        const double d13rsq = d13[0] * d13[0] + d13[1] * d13[1] + d13[2] * d13[2];
         const double d13r = std::sqrt(d13rsq);
 
-        const double d23[3] =
-                         {mon2[0] - mon3[0],
-                          mon2[1] - mon3[1],
-                          mon2[2] - mon3[2]};
+        const double d23[3] = {mon2[0] - mon3[0], mon2[1] - mon3[1], mon2[2] - mon3[2]};
 
-        const double d23rsq = d23[0]*d23[0] + d23[1]*d23[1] + d23[2]*d23[2];
+        const double d23rsq = d23[0] * d23[0] + d23[1] * d23[1] + d23[2] * d23[2];
         const double d23r = std::sqrt(d23rsq);
 
-        if (true  && d12r > m_ro  && d13r > m_ro  && d23r > m_ro ) {
-             continue;
+        if (true && d12r > m_ro && d13r > m_ro && d23r > m_ro) {
+            continue;
         }
 
-        std::vector<double> gradients(33,0.0);
+        std::vector<double> gradients(33, 0.0);
 
         std::copy(mon1, mon1 + 15, xyz.begin() + 0);
 
@@ -1533,7 +1507,6 @@ double mbnrg_A1B4_C1D2_C1D2_deg3_v1::eval(const double *xyz1, const double *xyz2
 
         const double* coords_D_4_c = xyz.data() + 30;
 
-
         double* coords_A_1_a_g = gradients.data() + 0;
 
         double* coords_B_1_a_g = gradients.data() + 3;
@@ -1556,17 +1529,13 @@ double mbnrg_A1B4_C1D2_C1D2_deg3_v1::eval(const double *xyz1, const double *xyz2
 
         double* coords_D_4_c_g = gradients.data() + 30;
 
+        double w12 = -9.721486914088159e-02;  // from MBpol
+        double w13 = -9.721486914088159e-02;
+        double wcross = 9.859272078406150e-02;
 
-
-        double w12 =     -9.721486914088159e-02;  //from MBpol
-        double w13 =     -9.721486914088159e-02;
-        double wcross =   9.859272078406150e-02;
-
-    
         variable vs[55];
 
         double xs[55];
-
 
         double gxs[55];
 
@@ -1633,10 +1602,10 @@ double mbnrg_A1B4_C1D2_C1D2_deg3_v1::eval(const double *xyz1, const double *xyz2
         double gsw23 = 0.0;
         double sw23 = f_switch(d23r, gsw23);
 
-        sw = sw12*sw13 + sw12*sw23 + sw13*sw23;
+        sw = sw12 * sw13 + sw12 * sw23 + sw13 * sw23;
 
-        energies[j] = my_poly.eval(xs,coefficients.data(),gxs);
-        energies_sw[j] = energies[j]*sw;
+        energies[j] = my_poly.eval(xs, coefficients.data(), gxs);
+        energies_sw[j] = energies[j] * sw;
 
         for (size_t i = 0; i < 55; i++) {
             gxs[i] *= sw;
@@ -1697,121 +1666,82 @@ double mbnrg_A1B4_C1D2_C1D2_deg3_v1::eval(const double *xyz1, const double *xyz2
         vs[52].grads(gxs[52], coords_D_2_b_g, coords_D_3_c_g, coords_D_2_b, coords_D_3_c);
         vs[53].grads(gxs[53], coords_D_2_b_g, coords_D_4_c_g, coords_D_2_b, coords_D_4_c);
         vs[54].grads(gxs[54], coords_D_3_c_g, coords_D_4_c_g, coords_D_3_c, coords_D_4_c);
-        gsw12 *= (1.0*sw13 + 1.0*sw23)*energies[j]/d12r;
-        gsw13 *= (sw12*1.0 + 1.0*sw23)*energies[j]/d13r;
-        gsw23 *= (sw12*1.0 + sw13*1.0)*energies[j]/d23r;
-
+        gsw12 *= (1.0 * sw13 + 1.0 * sw23) * energies[j] / d12r;
+        gsw13 *= (sw12 * 1.0 + 1.0 * sw23) * energies[j] / d13r;
+        gsw23 *= (sw12 * 1.0 + sw13 * 1.0) * energies[j] / d23r;
 
         for (size_t i = 0; i < 3; i++) {
-            gradients[0 + i] += 0.0 + (gsw12*d12[i])+ (gsw13*d13[i]);
-            gradients[15 + i] += 0.0 - (gsw12*d12[i])+ (gsw23*d23[i]);
-            gradients[24 + i] += 0.0 - (gsw13*d13[i])- (gsw23*d23[i]);
+            gradients[0 + i] += 0.0 + (gsw12 * d12[i]) + (gsw13 * d13[i]);
+            gradients[15 + i] += 0.0 - (gsw12 * d12[i]) + (gsw23 * d23[i]);
+            gradients[24 + i] += 0.0 - (gsw13 * d13[i]) - (gsw23 * d23[i]);
         }
-
 
         for (size_t i = 0; i < 15; i++) {
-            grad1[i + j*15] += gradients[0 + i];
+            grad1[i + j * 15] += gradients[0 + i];
         }
 
-
         for (size_t i = 0; i < 9; i++) {
-            grad2[i + j*9] += gradients[15 + i];
+            grad2[i + j * 9] += gradients[15 + i];
         }
 
-
         for (size_t i = 0; i < 9; i++) {
-            grad3[i + j*9] += gradients[24 + i];
+            grad3[i + j * 9] += gradients[24 + i];
         }
 
         if (virial != 0) {
-         
-            (*virial)[0] += -coords_A_1_a[0]* coords_A_1_a_g[0]
-                            -coords_B_1_a[0]* coords_B_1_a_g[0]
-                            -coords_B_2_a[0]* coords_B_2_a_g[0]
-                            -coords_B_3_a[0]* coords_B_3_a_g[0]
-                            -coords_B_4_a[0]* coords_B_4_a_g[0]
-                            -coords_C_1_b[0]* coords_C_1_b_g[0]
-                            -coords_D_1_b[0]* coords_D_1_b_g[0]
-                            -coords_D_2_b[0]* coords_D_2_b_g[0]
-                            -coords_C_2_c[0]* coords_C_2_c_g[0]
-                            -coords_D_3_c[0]* coords_D_3_c_g[0]
-                            -coords_D_4_c[0]* coords_D_4_c_g[0];
-                                                        
-            (*virial)[1] += -coords_A_1_a[0]* coords_A_1_a_g[1]
-                            -coords_B_1_a[0]* coords_B_1_a_g[1]
-                            -coords_B_2_a[0]* coords_B_2_a_g[1]
-                            -coords_B_3_a[0]* coords_B_3_a_g[1]
-                            -coords_B_4_a[0]* coords_B_4_a_g[1]
-                            -coords_C_1_b[0]* coords_C_1_b_g[1]
-                            -coords_D_1_b[0]* coords_D_1_b_g[1]
-                            -coords_D_2_b[0]* coords_D_2_b_g[1]
-                            -coords_C_2_c[0]* coords_C_2_c_g[1]
-                            -coords_D_3_c[0]* coords_D_3_c_g[1]
-                            -coords_D_4_c[0]* coords_D_4_c_g[1];
-                                                        
-            (*virial)[2] += -coords_A_1_a[0]* coords_A_1_a_g[2]
-                            -coords_B_1_a[0]* coords_B_1_a_g[2]
-                            -coords_B_2_a[0]* coords_B_2_a_g[2]
-                            -coords_B_3_a[0]* coords_B_3_a_g[2]
-                            -coords_B_4_a[0]* coords_B_4_a_g[2]
-                            -coords_C_1_b[0]* coords_C_1_b_g[2]
-                            -coords_D_1_b[0]* coords_D_1_b_g[2]
-                            -coords_D_2_b[0]* coords_D_2_b_g[2]
-                            -coords_C_2_c[0]* coords_C_2_c_g[2]
-                            -coords_D_3_c[0]* coords_D_3_c_g[2]
-                            -coords_D_4_c[0]* coords_D_4_c_g[2];
-                                                        
-            (*virial)[4] += -coords_A_1_a[1]* coords_A_1_a_g[1]
-                            -coords_B_1_a[1]* coords_B_1_a_g[1]
-                            -coords_B_2_a[1]* coords_B_2_a_g[1]
-                            -coords_B_3_a[1]* coords_B_3_a_g[1]
-                            -coords_B_4_a[1]* coords_B_4_a_g[1]
-                            -coords_C_1_b[1]* coords_C_1_b_g[1]
-                            -coords_D_1_b[1]* coords_D_1_b_g[1]
-                            -coords_D_2_b[1]* coords_D_2_b_g[1]
-                            -coords_C_2_c[1]* coords_C_2_c_g[1]
-                            -coords_D_3_c[1]* coords_D_3_c_g[1]
-                            -coords_D_4_c[1]* coords_D_4_c_g[1];
-                                                        
-            (*virial)[5] += -coords_A_1_a[1]* coords_A_1_a_g[2]
-                            -coords_B_1_a[1]* coords_B_1_a_g[2]
-                            -coords_B_2_a[1]* coords_B_2_a_g[2]
-                            -coords_B_3_a[1]* coords_B_3_a_g[2]
-                            -coords_B_4_a[1]* coords_B_4_a_g[2]
-                            -coords_C_1_b[1]* coords_C_1_b_g[2]
-                            -coords_D_1_b[1]* coords_D_1_b_g[2]
-                            -coords_D_2_b[1]* coords_D_2_b_g[2]
-                            -coords_C_2_c[1]* coords_C_2_c_g[2]
-                            -coords_D_3_c[1]* coords_D_3_c_g[2]
-                            -coords_D_4_c[1]* coords_D_4_c_g[2];
-                                                        
-            (*virial)[8] += -coords_A_1_a[2]* coords_A_1_a_g[2]
-                            -coords_B_1_a[2]* coords_B_1_a_g[2]
-                            -coords_B_2_a[2]* coords_B_2_a_g[2]
-                            -coords_B_3_a[2]* coords_B_3_a_g[2]
-                            -coords_B_4_a[2]* coords_B_4_a_g[2]
-                            -coords_C_1_b[2]* coords_C_1_b_g[2]
-                            -coords_D_1_b[2]* coords_D_1_b_g[2]
-                            -coords_D_2_b[2]* coords_D_2_b_g[2]
-                            -coords_C_2_c[2]* coords_C_2_c_g[2]
-                            -coords_D_3_c[2]* coords_D_3_c_g[2]
-                            -coords_D_4_c[2]* coords_D_4_c_g[2];
-        
-            (*virial)[3]=(*virial)[1];
-            (*virial)[6]=(*virial)[2];
-            (*virial)[7]=(*virial)[5];
-        
-        }
+            (*virial)[0] += -coords_A_1_a[0] * coords_A_1_a_g[0] - coords_B_1_a[0] * coords_B_1_a_g[0] -
+                            coords_B_2_a[0] * coords_B_2_a_g[0] - coords_B_3_a[0] * coords_B_3_a_g[0] -
+                            coords_B_4_a[0] * coords_B_4_a_g[0] - coords_C_1_b[0] * coords_C_1_b_g[0] -
+                            coords_D_1_b[0] * coords_D_1_b_g[0] - coords_D_2_b[0] * coords_D_2_b_g[0] -
+                            coords_C_2_c[0] * coords_C_2_c_g[0] - coords_D_3_c[0] * coords_D_3_c_g[0] -
+                            coords_D_4_c[0] * coords_D_4_c_g[0];
 
+            (*virial)[1] += -coords_A_1_a[0] * coords_A_1_a_g[1] - coords_B_1_a[0] * coords_B_1_a_g[1] -
+                            coords_B_2_a[0] * coords_B_2_a_g[1] - coords_B_3_a[0] * coords_B_3_a_g[1] -
+                            coords_B_4_a[0] * coords_B_4_a_g[1] - coords_C_1_b[0] * coords_C_1_b_g[1] -
+                            coords_D_1_b[0] * coords_D_1_b_g[1] - coords_D_2_b[0] * coords_D_2_b_g[1] -
+                            coords_C_2_c[0] * coords_C_2_c_g[1] - coords_D_3_c[0] * coords_D_3_c_g[1] -
+                            coords_D_4_c[0] * coords_D_4_c_g[1];
+
+            (*virial)[2] += -coords_A_1_a[0] * coords_A_1_a_g[2] - coords_B_1_a[0] * coords_B_1_a_g[2] -
+                            coords_B_2_a[0] * coords_B_2_a_g[2] - coords_B_3_a[0] * coords_B_3_a_g[2] -
+                            coords_B_4_a[0] * coords_B_4_a_g[2] - coords_C_1_b[0] * coords_C_1_b_g[2] -
+                            coords_D_1_b[0] * coords_D_1_b_g[2] - coords_D_2_b[0] * coords_D_2_b_g[2] -
+                            coords_C_2_c[0] * coords_C_2_c_g[2] - coords_D_3_c[0] * coords_D_3_c_g[2] -
+                            coords_D_4_c[0] * coords_D_4_c_g[2];
+
+            (*virial)[4] += -coords_A_1_a[1] * coords_A_1_a_g[1] - coords_B_1_a[1] * coords_B_1_a_g[1] -
+                            coords_B_2_a[1] * coords_B_2_a_g[1] - coords_B_3_a[1] * coords_B_3_a_g[1] -
+                            coords_B_4_a[1] * coords_B_4_a_g[1] - coords_C_1_b[1] * coords_C_1_b_g[1] -
+                            coords_D_1_b[1] * coords_D_1_b_g[1] - coords_D_2_b[1] * coords_D_2_b_g[1] -
+                            coords_C_2_c[1] * coords_C_2_c_g[1] - coords_D_3_c[1] * coords_D_3_c_g[1] -
+                            coords_D_4_c[1] * coords_D_4_c_g[1];
+
+            (*virial)[5] += -coords_A_1_a[1] * coords_A_1_a_g[2] - coords_B_1_a[1] * coords_B_1_a_g[2] -
+                            coords_B_2_a[1] * coords_B_2_a_g[2] - coords_B_3_a[1] * coords_B_3_a_g[2] -
+                            coords_B_4_a[1] * coords_B_4_a_g[2] - coords_C_1_b[1] * coords_C_1_b_g[2] -
+                            coords_D_1_b[1] * coords_D_1_b_g[2] - coords_D_2_b[1] * coords_D_2_b_g[2] -
+                            coords_C_2_c[1] * coords_C_2_c_g[2] - coords_D_3_c[1] * coords_D_3_c_g[2] -
+                            coords_D_4_c[1] * coords_D_4_c_g[2];
+
+            (*virial)[8] += -coords_A_1_a[2] * coords_A_1_a_g[2] - coords_B_1_a[2] * coords_B_1_a_g[2] -
+                            coords_B_2_a[2] * coords_B_2_a_g[2] - coords_B_3_a[2] * coords_B_3_a_g[2] -
+                            coords_B_4_a[2] * coords_B_4_a_g[2] - coords_C_1_b[2] * coords_C_1_b_g[2] -
+                            coords_D_1_b[2] * coords_D_1_b_g[2] - coords_D_2_b[2] * coords_D_2_b_g[2] -
+                            coords_C_2_c[2] * coords_C_2_c_g[2] - coords_D_3_c[2] * coords_D_3_c_g[2] -
+                            coords_D_4_c[2] * coords_D_4_c_g[2];
+
+            (*virial)[3] = (*virial)[1];
+            (*virial)[6] = (*virial)[2];
+            (*virial)[7] = (*virial)[5];
+        }
     }
 
     double energy = 0.0;
-    for (size_t i = 0; i < n; i++)
-        energy += energies_sw[i];
+    for (size_t i = 0; i < n; i++) energy += energies_sw[i];
 
     return energy;
-
 }
 
 //----------------------------------------------------------------------------//
-} // namespace mbnrg_A1B4_C1D2_C1D2_deg3
+}  // namespace mbnrg_A1B4_C1D2_C1D2_deg3

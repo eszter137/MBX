@@ -56,7 +56,10 @@ namespace bblock {  // Building Block :: System
 
 ////////////////////////////////////////////////////////////////////////////////
 
-System::System() { initialized_ = false; mpi_initialized_ = false; }
+System::System() {
+    initialized_ = false;
+    mpi_initialized_ = false;
+}
 System::~System() {}
 
 size_t System::GetNumMol() { return nummol; }
@@ -408,7 +411,16 @@ void System::SetPBC(std::vector<double> box) {
 
     // Set the box and the bool to use or not pbc
     use_pbc_ = box.size();
+
     box_ = box;
+    if (box.size() == 9) {
+        box_ = box;
+        box_ABCabc_ = BoxVecToBoxABCabc(box);
+    } else if (box.size() == 6) {
+        box_ABCabc_ = box;
+        box_ = BoxABCabcToBoxVec(box);
+    }
+
     box_inverse_ = InvertUnitCell(box_);
 
     // If we use PBC, we need to make sure that the monomer atoms are all
@@ -584,7 +596,7 @@ void System::Initialize() {
     std::cerr << std::scientific << std::setprecision(10);
     std::cout << std::scientific << std::setprecision(10);
 #endif
-    
+
     /////////////
     // CUTOFFS //
     /////////////
@@ -650,15 +662,111 @@ void System::Initialize() {
     // With the information previously set, we initialize the
     // electrostatics class
     // TODO: Do grads set to true for now. Needs to be fixed
+    if (mpi_initialized_) electrostaticE_.SetMPI(world_, proc_grid_x_, proc_grid_y_, proc_grid_z_);
     electrostaticE_.Initialize(chg_, chggrad_, polfac_, pol_, xyz_, monomers_, sites_, first_index_, mon_type_count_,
-                               true, diptol_, maxItDip_, dipole_method_);
+                               islocal_, true, diptol_, maxItDip_, dipole_method_);
 
     // TODO Is this OK? Order of GetReal is input order.
     std::vector<double> xyz_real = GetRealXyz();
     // TODO modify c6_long_range
-    if(mpi_initialized_) dispersionE_.SetMPI(world_, proc_grid_x_, proc_grid_y_, proc_grid_z_);
+    if (mpi_initialized_) dispersionE_.SetMPI(world_, proc_grid_x_, proc_grid_y_, proc_grid_z_);
     dispersionE_.Initialize(c6_lr_, xyz_real, monomers_, nat_, mon_type_count_, islocal_, true, box_);
     buckinghamE_.Initialize(xyz_real, monomers_, nat_, mon_type_count_, enforce_ttm_for_idx_, islocal_, true, box_);
+
+    // We are done. Setting initialized_ to true
+    initialized_ = true;
+}
+
+void System::InitializePME() {
+    // If we try to reinitialize the system, we will get an exception
+    if (initialized_) {
+        std::string text =
+            std::string("The system has already been initialized. ") + std::string("Reinitialization is not possible");
+        throw CUException(__func__, __FILE__, __LINE__, text);
+    }
+
+#ifdef DEBUG
+    std::cerr << std::scientific << std::setprecision(10);
+    std::cout << std::scientific << std::setprecision(10);
+#endif
+
+    /////////////
+    // CUTOFFS //
+    /////////////
+
+    // Setting 2B cutoff
+    // Affects the 2B dispersion and 2B polynomials
+    // TODO make it effective for electrostatics too
+    cutoff2b_ = 50.0;
+
+    // Setting 3B cutoff
+    // Affects the 3B polynomials
+    cutoff3b_ = 5.0;
+
+    ////////////////////////
+    // Evaluation batches //
+    ////////////////////////
+
+    // Maximum number in the batch for the 1B evaluation
+    maxNMonEval_ = 1024;
+    // Maximum number in the batch for the 2B evaluation
+    maxNDimEval_ = 1024;
+    // Maximum number in the batch for the 3B evaluation
+    maxNTriEval_ = 1024;
+
+    //////////////////////////////////
+    // Periodic boundary conditions //
+    //////////////////////////////////
+
+    /////////////////////////////
+    // Add monomer information //
+    /////////////////////////////
+
+    // Retrieves all the monomer information given the coordinates
+    // and monomer id, such as number of sites, and orders the monomers
+    numat_ = 0;
+    // AddMonomerInfo();
+
+    // Setting the number of molecules and number of monomers
+    nummol = 0;
+    nummon_ = 0;
+
+    ////////////////////
+    // ELECTROSTATICS //
+    ////////////////////
+
+    // Setting dipole tolerance to a consrvative value
+    // TODO make it be error/dipole, not total error as it is now
+    diptol_ = 1E-16;
+    // Sets the maximum number of iteartions in the induced dipole
+    // calculation. Will assume no convergence if this number is reached
+    maxItDip_ = 100;
+    // Sets the default method to calculate induced dipoles to ASPC
+    dipole_method_ = "cg";
+
+    // Setting PBC to false by default
+    SetPBC();
+
+    // Set C6 for long range pme
+    SetC6LongRange();
+
+    // Define the virial vector
+    virial_ = std::vector<double>(9, 0.0);
+
+    // With the information previously set, we initialize the
+    // electrostatics class
+    // TODO: Do grads set to true for now. Needs to be fixed
+    if (mpi_initialized_) electrostaticE_.SetMPI(world_, proc_grid_x_, proc_grid_y_, proc_grid_z_);
+    electrostaticE_.Initialize(chg_, chggrad_, polfac_, pol_, xyz_, monomers_, sites_, first_index_, mon_type_count_,
+                               islocal_, true, diptol_, maxItDip_, dipole_method_);
+
+    // TODO Is this OK? Order of GetReal is input order.
+    // std::vector<double> xyz_real = GetRealXyz();
+    std::vector<double> xyz_real = {};
+    // TODO modify c6_long_range
+    if (mpi_initialized_) dispersionE_.SetMPI(world_, proc_grid_x_, proc_grid_y_, proc_grid_z_);
+    dispersionE_.Initialize(c6_lr_, xyz_real, monomers_, nat_, mon_type_count_, islocal_, true, box_);
+    // buckinghamE_.Initialize(xyz_real, monomers_, nat_, mon_type_count_, islocal_, true, box_);
 
     // We are done. Setting initialized_ to true
     initialized_ = true;
@@ -675,7 +783,16 @@ void System::SetUpFromJson(nlohmann::json j) {
         box.clear();
         std::cerr << "**WARNING** \"box\" is not defined in json file. Using empty box.\n";
     }
+
     box_ = box;
+    if (box.size() == 9) {
+        box_ = box;
+        box_ABCabc_ = BoxVecToBoxABCabc(box);
+    } else if (box.size() == 6) {
+        box_ABCabc_ = box;
+        box_ = BoxABCabcToBoxVec(box);
+    }
+
     mbx_j_["MBX"]["box"] = box;
 
     // Try to get 2b cutoff
@@ -1007,10 +1124,10 @@ void System::SetUpFromJson(char *json_file) {
 std::string System::GetCurrentSystemConfig() {
     std::stringstream ss;
 
-    ss <<  std::left << std::setw(25) << "Box:";
+    ss << std::left << std::setw(25) << "Box:";
     for (size_t i = 0; i < box_.size(); i++) {
         ss << std::scientific << std::setprecision(4) << box_[i] << " ";
-    } 
+    }
     ss << std::endl;
 
     ss << std::left << std::setw(25) << "2B cutoff:" << cutoff2b_ << std::endl;
@@ -1028,39 +1145,39 @@ std::string System::GetCurrentSystemConfig() {
     ss << std::left << std::setw(25) << "Grid Dens Disp:" << disp_grid_density_ << std::endl;
     ss << std::left << std::setw(25) << "Spline Order Disp:" << disp_spline_order_ << std::endl;
 
-    ss <<  std::left << std::setw(25) << "TTM-pairs:";
+    ss << std::left << std::setw(25) << "TTM-pairs:";
     for (size_t i = 0; i < buck_pairs_.size(); i++) {
         ss << "{" << buck_pairs_[i].first << "," << buck_pairs_[i].second << "} ";
-    }                                                                                                            
+    }
     ss << std::endl;
 
-    ss <<  std::left << std::setw(25) << "Forcefield Mons:";    
-    for (size_t i = 0; i < ff_mons_.size(); i++) { 
-        ss << ff_mons_[i] << " ";             
-    }                                                                                                            
+    ss << std::left << std::setw(25) << "Forcefield Mons:";
+    for (size_t i = 0; i < ff_mons_.size(); i++) {
+        ss << ff_mons_[i] << " ";
+    }
     ss << std::endl;
 
-    ss <<  std::left << std::setw(25) << "Ignore 1B poly:";    
-    for (size_t i = 0; i < ignore_1b_poly_.size(); i++) {   
+    ss << std::left << std::setw(25) << "Ignore 1B poly:";
+    for (size_t i = 0; i < ignore_1b_poly_.size(); i++) {
         ss << ignore_1b_poly_[i] << " ";
     }
     ss << std::endl;
 
-    ss <<  std::left << std::setw(25) << "Ignore 2B poly:";    
-    for (size_t i = 0; i < ignore_2b_poly_.size(); i++) {   
+    ss << std::left << std::setw(25) << "Ignore 2B poly:";
+    for (size_t i = 0; i < ignore_2b_poly_.size(); i++) {
         ss << "{";
         for (size_t j = 0; j < ignore_2b_poly_[i].size(); j++) {
-          ss << ignore_2b_poly_[i][j] << " ";
+            ss << ignore_2b_poly_[i][j] << " ";
         }
         ss << "} ";
     }
     ss << std::endl;
 
-    ss << std::left << std::setw(25) << "Ignore 3B poly:";    
-    for (size_t i = 0; i < ignore_3b_poly_.size(); i++) {   
+    ss << std::left << std::setw(25) << "Ignore 3B poly:";
+    for (size_t i = 0; i < ignore_3b_poly_.size(); i++) {
         ss << "{";
         for (size_t j = 0; j < ignore_3b_poly_[i].size(); j++) {
-          ss << ignore_3b_poly_[i][j] << " ";
+            ss << ignore_3b_poly_[i][j] << " ";
         }
         ss << "} ";
     }
@@ -1234,8 +1351,8 @@ void System::AddClusters(size_t nmax, double cutoff, size_t istart, size_t iend,
     //}
 
     size_t nmon = monomers_.size();
-    systools::AddClusters(nmax, cutoff, istart, iend, nmon, use_pbc_, box_, box_inverse_, xyz_, first_index_, islocal_, dimers_,
-                          trimers_, use_ghost_);
+    systools::AddClusters(nmax, cutoff, istart, iend, nmon, use_pbc_, box_, box_inverse_, xyz_, first_index_, islocal_,
+                          dimers_, trimers_, use_ghost_);
 }
 
 std::vector<size_t> System::AddClustersParallel(size_t nmax, double cutoff, size_t istart, size_t iend,
@@ -1254,8 +1371,8 @@ std::vector<size_t> System::AddClustersParallel(size_t nmax, double cutoff, size
 
     size_t nmon = monomers_.size();
     std::vector<size_t> dimers, trimers;
-    systools::AddClusters(nmax, cutoff, istart, iend, nmon, use_pbc_, box_, box_inverse_, xyz_, first_index_, islocal_, dimers,
-                          trimers, use_ghost_);
+    systools::AddClusters(nmax, cutoff, istart, iend, nmon, use_pbc_, box_, box_inverse_, xyz_, first_index_, islocal_,
+                          dimers, trimers, use_ghost_);
     if (nmax == 2) return dimers;
     return trimers;
 }
@@ -1295,7 +1412,7 @@ double System::Energy(bool do_grads) {
 
     // If monomers are too distorted, skip 2b and 3b calculation
     // Return only
-    //if (!allMonGood_) {
+    // if (!allMonGood_) {
     //    return e1b;
     //}
 
@@ -1528,10 +1645,10 @@ double System::Get1B(bool do_grads) {
             size_t nmon = 0;
             for (size_t i = istart; i < iend; i++) {
                 if (islocal_[indx + i]) {
-                   mon_idxs.push_back(current_mon);
-                   nmon++;
+                    mon_idxs.push_back(current_mon);
+                    nmon++;
                 }
-                current_mon++;  
+                current_mon++;
             }
 
             size_t ncoord = 3 * nat_[curr_mon_type] * nmon;
@@ -1702,14 +1819,18 @@ double System::Get2B(bool do_grads, bool use_ghost) {
         // Loop over all the dimers
         while (2 * nd_tot < dimers.size()) {
             i = (nd_tot + nd_bad + nd) * 2;
-            if (i  >= dimers.size()) break;
+            if (i >= dimers.size()) break;
             bool m1_is_good = true;
             bool m2_is_good = true;
             // Check if we are still in the same type of pair
             // We will pas the entire batch in the 2b calculator, but they need
             // to be the same pair (e.g., h2o-h2o, h2o-i, cl-na...)
-            if (std::find(enforce_ttm_for_idx_.begin(), enforce_ttm_for_idx_.end(), dimers[i]) !=  enforce_ttm_for_idx_.end()) m1_is_good = false;
-            if (std::find(enforce_ttm_for_idx_.begin(), enforce_ttm_for_idx_.end(), dimers[i+1]) !=  enforce_ttm_for_idx_.end()) m2_is_good = false;
+            if (std::find(enforce_ttm_for_idx_.begin(), enforce_ttm_for_idx_.end(), dimers[i]) !=
+                enforce_ttm_for_idx_.end())
+                m1_is_good = false;
+            if (std::find(enforce_ttm_for_idx_.begin(), enforce_ttm_for_idx_.end(), dimers[i + 1]) !=
+                enforce_ttm_for_idx_.end())
+                m2_is_good = false;
             if (monomers_[dimers[i]] == m1 && monomers_[dimers[i + 1]] == m2 && m1_is_good && m2_is_good) {
                 // Push the coordinates
                 for (size_t j = 0; j < 3 * nat_[dimers[i]]; j++) {
@@ -1721,7 +1842,6 @@ double System::Get2B(bool do_grads, bool use_ghost) {
                     grad2.push_back(0.0);
                 }
                 nd++;
-
             }
             if (!m1_is_good || !m2_is_good) nd_bad++;
 
@@ -1743,8 +1863,8 @@ double System::Get2B(bool do_grads, bool use_ghost) {
 
                 // Fix dimer positions if pbc
                 if (use_pbc_) {
-                    systools::GetCloseDimerImage(box_, box_inverse_, nat_[dimers[nd_tot * 2]], nat_[dimers[nd_tot * 2 + 1]], nd,
-                                                 xyz1.data(), xyz2.data());
+                    systools::GetCloseDimerImage(box_, box_inverse_, nat_[dimers[nd_tot * 2]],
+                                                 nat_[dimers[nd_tot * 2 + 1]], nd, xyz1.data(), xyz2.data());
                 }
 
                 // Check if this pair needs to use MB-nrg
@@ -1755,14 +1875,12 @@ double System::Get2B(bool do_grads, bool use_ghost) {
                     std::sort(v1.begin(), v1.end());
                     std::sort(v2.begin(), v2.end());
 
-
                     if (v1 == v2) {
                         use_poly = false;
                         break;
                     }
-
                 }
-               
+
                 if (use_poly) {
                     if (do_grads) {
                         // POLYNOMIALS
@@ -1997,9 +2115,9 @@ double System::Get3B(bool do_grads, bool use_ghost) {
 
                 // Fix trimer positions if pbc
                 if (use_pbc_) {
-                    systools::GetCloseTrimerImage(box_, box_inverse_, nat_[trimers[nt_tot * 3]], nat_[trimers[nt_tot * 3 + 1]],
-                                                  nat_[trimers[nt_tot * 3 + 2]], nt, coord1, coord2,
-                                                  coord3);
+                    systools::GetCloseTrimerImage(box_, box_inverse_, nat_[trimers[nt_tot * 3]],
+                                                  nat_[trimers[nt_tot * 3 + 1]], nat_[trimers[nt_tot * 3 + 2]], nt,
+                                                  coord1, coord2, coord3);
                 }
 
                 // Check if this pair needs to use MB-nrg
@@ -2296,7 +2414,7 @@ double System::Dispersion(bool do_grads, bool use_ghost) {
 
     return energy_;
 }
-  
+
 ////////////////////////////////////////////////////////////////////////////////
 
 double System::DispersionPME(bool do_grads, bool use_ghost) {
@@ -2309,12 +2427,36 @@ double System::DispersionPME(bool do_grads, bool use_ghost) {
     }
 
     energy_ = 0.0;
-    std::fill(grad_.begin(), grad_.end(), 0.0);
-    std::fill(virial_.begin(),virial_.end(),0.0);
-
+    if (islocal_.size() > 0) {
+        std::fill(grad_.begin(), grad_.end(), 0.0);
+        std::fill(virial_.begin(), virial_.end(), 0.0);
+    }
     SetPBC(box_);
 
     energy_ = GetDispersionPME(do_grads, use_ghost);
+
+    return energy_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+double System::DispersionPMElocal(bool do_grads, bool use_ghost) {
+    // Check if system has been initialized
+    // If not, throw exception
+    if (!initialized_) {
+        std::string text = std::string("System has not been initialized. ") +
+                           std::string("Dispersion Energy calculation not possible.");
+        throw CUException(__func__, __FILE__, __LINE__, text);
+    }
+
+    energy_ = 0.0;
+    if (islocal_.size() > 0) {
+        std::fill(grad_.begin(), grad_.end(), 0.0);
+        std::fill(virial_.begin(), virial_.end(), 0.0);
+    }
+    SetPBC(box_);
+
+    energy_ = GetDispersionPMElocal(do_grads, use_ghost);
 
     return energy_;
 }
@@ -2343,7 +2485,7 @@ double System::Buckingham(bool do_grads, bool use_ghost) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-double System::Electrostatics(bool do_grads) {
+double System::Electrostatics(bool do_grads, bool use_ghost) {
     // Check if system has been initialized
     // If not, throw exception
     if (!initialized_) {
@@ -2358,7 +2500,57 @@ double System::Electrostatics(bool do_grads) {
 
     SetPBC(box_);
 
-    energy_ = GetElectrostatics(do_grads);
+    energy_ = GetElectrostatics(do_grads, use_ghost);
+
+    return energy_;
+}
+
+double System::ElectrostaticsMPI(bool do_grads, bool use_ghost) {
+    // Check if system has been initialized
+    // If not, throw exception
+    if (!initialized_) {
+        std::string text = std::string("System has not been initialized. ") +
+                           std::string("Electrostatic Energy calculation ") + std::string("not possible.");
+        throw CUException(__func__, __FILE__, __LINE__, text);
+    }
+
+    energy_ = 0.0;
+    std::fill(grad_.begin(), grad_.end(), 0.0);
+    std::fill(virial_.begin(), virial_.end(), 0.0);
+
+    SetPBC(box_);
+
+    energy_ = GetElectrostatics(do_grads, use_ghost);
+
+    // correct energy and forces for number of processors
+
+    double rnprocs = 1.0 / (double)(proc_grid_x_ * proc_grid_y_ * proc_grid_z_);
+
+    energy_ *= rnprocs;
+    for (int i = 0; i < grad_.size(); ++i) grad_[i] *= rnprocs;
+    for (int i = 0; i < virial_.size(); ++i) virial_[i] *= rnprocs;
+
+    return energy_;
+}
+
+double System::ElectrostaticsMPIlocal(bool do_grads, bool use_ghost) {
+    // Check if system has been initialized
+    // If not, throw exception
+    if (!initialized_) {
+        std::string text = std::string("System has not been initialized. ") +
+                           std::string("Electrostatic Energy calculation ") + std::string("not possible.");
+        throw CUException(__func__, __FILE__, __LINE__, text);
+    }
+
+    energy_ = 0.0;
+    if (islocal_.size() > 0) {
+        std::fill(grad_.begin(), grad_.end(), 0.0);
+        std::fill(virial_.begin(), virial_.end(), 0.0);
+    }
+
+    SetPBC(box_);
+
+    energy_ = GetElectrostaticsMPIlocal(do_grads, use_ghost);
 
     return energy_;
 }
@@ -2408,13 +2600,15 @@ void System::SetMPI(MPI_Comm comm, int nx, int ny, int nz) {
     proc_grid_z_ = 1;
 #endif
 }
-  
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int System::TestMPI() {
 #if HAVE_MPI == 1
-    if(mpi_initialized_) return 1;
-    else return -1;
+    if (mpi_initialized_)
+        return 1;
+    else
+        return -1;
 #else
     return -2;
 #endif
@@ -2422,12 +2616,20 @@ int System::TestMPI() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-double System::GetElectrostatics(bool do_grads) {
+double System::GetElectrostatics(bool do_grads, bool use_ghost) {
     electrostaticE_.SetNewParameters(xyz_, chg_, chggrad_, pol_, polfac_, dipole_method_, do_grads, box_, cutoff2b_);
     electrostaticE_.SetDipoleTolerance(diptol_);
     electrostaticE_.SetDipoleMaxIt(maxItDip_);
 
-    return electrostaticE_.GetElectrostatics(grad_, &virial_);
+    return electrostaticE_.GetElectrostatics(grad_, &virial_, use_ghost);
+}
+
+double System::GetElectrostaticsMPIlocal(bool do_grads, bool use_ghost) {
+    electrostaticE_.SetNewParameters(xyz_, chg_, chggrad_, pol_, polfac_, dipole_method_, do_grads, box_, cutoff2b_);
+    electrostaticE_.SetDipoleTolerance(diptol_);
+    electrostaticE_.SetDipoleMaxIt(maxItDip_);
+
+    return electrostaticE_.GetElectrostaticsMPIlocal(grad_, &virial_, use_ghost);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2456,10 +2658,10 @@ double System::GetDispersion(bool do_grads, bool use_ghost) {
     }
     return e;
 }
-  
+
 ////////////////////////////////////////////////////////////////////////////////
 
-  double System::GetDispersionPME(bool do_grads, bool use_ghost) {
+double System::GetDispersionPME(bool do_grads, bool use_ghost) {
     std::vector<double> xyz_real(3 * numat_);
 
     size_t count = 0;
@@ -2486,6 +2688,46 @@ double System::GetDispersion(bool do_grads, bool use_ghost) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+double System::GetDispersionPMElocal(bool do_grads, bool use_ghost) {
+    std::vector<double> xyz_real(3 * numat_);
+
+    size_t count = 0;
+    for (size_t i = 0; i < nummon_; i++) {
+        for (size_t j = 0; j < 3 * nat_[i]; j++) {
+            xyz_real[count + j] = xyz_[first_index_[i] * 3 + j];
+        }
+        count += 3 * nat_[i];
+    }
+
+    dispersionE_.SetNewParameters(xyz_real, do_grads, cutoff2b_, box_);
+    std::vector<double> real_grad(3 * numat_, 0.0);
+    double e = dispersionE_.GetDispersionPMElocal(real_grad, &virial_, use_ghost);
+
+    count = 0;
+    for (size_t i = 0; i < nummon_; i++) {
+        for (size_t j = 0; j < 3 * nat_[i]; j++) {
+            grad_[first_index_[i] * 3 + j] += real_grad[count + j];
+        }
+        count += 3 * nat_[i];
+    }
+    return e;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void System::SetBoxPMElocal(std::vector<double> box) {
+    // Check that the box has 0 or 9 components
+    if (box.size() != 9 && box.size() != 0) {
+        std::string text = "Box size of " + std::to_string(box.size()) + " is not acceptable.";
+        throw CUException(__func__, __FILE__, __LINE__, text);
+    }
+
+    dispersionE_.SetBoxPMElocal(box);
+    electrostaticE_.SetBoxPMElocal(box);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 double System::GetBuckingham(bool do_grads, bool use_ghost) {
     std::vector<double> xyz_real(3 * numat_);
 
@@ -2498,7 +2740,7 @@ double System::GetBuckingham(bool do_grads, bool use_ghost) {
     }
 
     buckinghamE_.SetNewParameters(xyz_real, buck_pairs_, enforce_ttm_for_idx_, do_grads, cutoff2b_, box_);
-    //buckinghamE_.SetNewParameters(xyz_real, buck_pairs_, do_grads, cutoff2b_, box_);
+    // buckinghamE_.SetNewParameters(xyz_real, buck_pairs_, do_grads, cutoff2b_, box_);
     std::vector<double> real_grad(3 * numat_, 0.0);
     double e = buckinghamE_.GetRepulsion(real_grad, &virial_, use_ghost);
 
@@ -2515,6 +2757,9 @@ double System::GetBuckingham(bool do_grads, bool use_ghost) {
 ////////////////////////////////////////////////////////////////////////////////
 
 void System::ResetDipoleHistory() { electrostaticE_.ResetAspcHistory(); }
+
+std::vector<size_t> System::GetInfoElectrostaticsCounts() { return electrostaticE_.GetInfoCounts(); }
+std::vector<double> System::GetInfoElectrostaticsTimings() { return electrostaticE_.GetInfoTimings(); }
 
 ////////////////////////////////////////////////////////////////////////////////
 

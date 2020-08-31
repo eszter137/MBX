@@ -63,6 +63,20 @@ SOFTWARE WILL NOT INFRINGE ANY PATENT, TRADEMARK OR OTHER RIGHTS.
  * with all its member functions and variables.
  */
 
+enum {
+    ELE_PERMDIP_REAL = 0,
+    ELE_PERMDIP_PME,
+
+    ELE_DIPFIELD_REAL,
+    ELE_DIPFIELD_PME,
+
+    ELE_GRAD_REAL,
+    ELE_GRAD_PME,
+    ELE_GRAD_FIN,
+
+    ELE_NUM_TIMERS
+};
+
 /**
  * @namespace elec
  * @brief Namespace that includes all the electrostatic related functions
@@ -103,9 +117,12 @@ class Electrostatics {
                     const std::vector<double> &polfac, const std::vector<double> &pol,
                     const std::vector<double> &sys_xyz, const std::vector<std::string> &mon_id,
                     const std::vector<size_t> &sites, const std::vector<size_t> &first_ind,
-                    const std::vector<std::pair<std::string, size_t> > &mon_type_count, const bool do_grads = true,
-                    const double tolerance = 1E-16, const size_t maxit = 100, const std::string dip_method = "iter",
+                    const std::vector<std::pair<std::string, size_t> > &mon_type_count,
+                    const std::vector<size_t> &islocal_, const bool do_grads = true, const double tolerance = 1E-16,
+                    const size_t maxit = 100, const std::string dip_method = "iter",
                     const std::vector<double> &box = {});
+
+    void SetMPI(MPI_Comm world_, size_t proc_grid_x, size_t proc_grid_y, size_t proc_grid_z);
 
     /**
      * @brief Gets the electrostatic energy
@@ -115,7 +132,8 @@ class Electrostatics {
      * @param[out] grad Gradients will be saved here
      * @return Total electrostatic energy
      */
-    double GetElectrostatics(std::vector<double> &grad, std::vector<double> *virial=0);
+    double GetElectrostatics(std::vector<double> &grad, std::vector<double> *virial = 0, bool use_ghost = 0);
+    double GetElectrostaticsMPIlocal(std::vector<double> &grad, std::vector<double> *virial = 0, bool use_ghost = 0);
 
     /**
      * @brief Clears the ASPC history
@@ -211,17 +229,37 @@ class Electrostatics {
      */
     double GetInducedElectrostaticEnergy();
 
+    std::vector<size_t> GetInfoCounts();
+    std::vector<double> GetInfoTimings();
+
+    /**
+     * Sets global box dimensions for PME solver; does not alter original PBC settings
+     * @param[in] box is a 9 component vector of double with
+     * the three main vectors of the cell: {v1x v1y v1z v2x v2y v2z v3x v3y v3z}
+     */
+    void SetBoxPMElocal(std::vector<double> box);
+
    private:
-    void CalculatePermanentElecField();
+    void CalculatePermanentElecField(bool use_ghost = 0);
+    void CalculatePermanentElecFieldMPIlocal(bool use_ghost = 0);
     void CalculateDipolesIterative();
-    void ComputeDipoleField(std::vector<double> &in_v, std::vector<double> &out_v);
+    void ComputeDipoleField(std::vector<double> &in_v, std::vector<double> &out_v, bool use_ghost = 0);
+    void ComputeDipoleFieldMPIlocal(std::vector<double> &in_v, std::vector<double> &out_v, bool use_ghost = 0);
     void CalculateDipolesCG();
+    void CalculateDipolesCGMPIlocal(bool use_ghost = 0);
     void DipolesCGIteration(std::vector<double> &in_v, std::vector<double> &out_v);
+    void DipolesCGIterationMPIlocal(std::vector<double> &in_v, std::vector<double> &out_v, bool use_ghost = 0);
     void CalculateDipolesAspc();
     void SetAspcParameters(size_t k);
     void CalculateDipoles();
+    void CalculateDipolesMPIlocal(bool use_ghost = 0);
     void CalculateElecEnergy();
+    void CalculateElecEnergyMPIlocal();
     void CalculateGradients(std::vector<double> &grad);
+    void CalculateGradientsMPIlocal(std::vector<double> &grad, bool use_ghost = 0);
+
+    void reverse_forward_comm(std::vector<double> &in_v);
+    void reverse_comm(std::vector<double> &in_v);
 
     void ReorderData();
 
@@ -243,6 +281,12 @@ class Electrostatics {
     std::vector<double> sys_xyz_;
     // System xyz, ordered XYZ. xx..yy..zz(mon1) xx..yy..zz(mon2) ...
     std::vector<double> xyz_;
+    // local/ghost descriptor for monomers
+    std::vector<size_t> islocal_;
+    // local/ghost descriptor for atoms
+    std::vector<size_t> islocal_atom_;
+    // local/ghost descriptor for xyz of atoms
+    std::vector<size_t> islocal_atom_xyz_;
     // Name of the monomers (h2o, f...)
     std::vector<std::string> mon_id_;
     // Number of sites of each mon
@@ -323,6 +367,11 @@ class Electrostatics {
     std::vector<double> box_;
     // inverse of the unit cell
     std::vector<double> box_inverse_;
+    // box in ABCabc format
+    std::vector<double> box_ABCabc_;
+    // box of the domain-decomposed system
+    std::vector<double> box_PMElocal_;
+    std::vector<double> box_inverse_PMElocal_;
     // use pbc in the electrostatics calculation
     bool use_pbc_;
     // electrostatics cutoff
@@ -339,6 +388,23 @@ class Electrostatics {
     std::vector<double> virial_;
     // calculate the virial tensor ?
     bool calc_virial_;
+    // MPI initialized
+    bool mpi_initialized_ = false;
+    // MPI Communicator
+    MPI_Comm world_;
+    // MPI Rank
+    int mpi_rank_;
+    // MPI Comm size
+    size_t num_mpi_ranks_;
+    // proc_grid
+    size_t proc_grid_x_;
+    size_t proc_grid_y_;
+    size_t proc_grid_z_;
+
+    bool first;
+
+    std::vector<size_t> mbxt_ele_count_;
+    std::vector<double> mbxt_ele_time_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

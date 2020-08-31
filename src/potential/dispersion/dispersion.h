@@ -53,12 +53,12 @@ SOFTWARE WILL NOT INFRINGE ANY PATENT, TRADEMARK OR OTHER RIGHTS.
 //#include "helpme.h"
 
 #ifndef MPI_VERSION
-//typedef struct ompi_communicator_t *MPI_Comm;
+// typedef struct ompi_communicator_t *MPI_Comm;
 typedef int MPI_Comm;
 #endif
 
 namespace disp {
-  
+
 class Dispersion {
    public:
     Dispersion(){};
@@ -67,13 +67,13 @@ class Dispersion {
     void Initialize(const std::vector<double> C6_long_range, const std::vector<double> &sys_xyz,
                     const std::vector<std::string> &mon_id, const std::vector<size_t> &num_atoms,
                     const std::vector<std::pair<std::string, size_t> > &mon_type_count,
-		    const std::vector<size_t> &islocal_, const bool do_grads,
-                    const std::vector<double> &box);
+                    const std::vector<size_t> &islocal_, const bool do_grads, const std::vector<double> &box);
 
     void SetMPI(MPI_Comm world_, size_t proc_grid_x, size_t proc_grid_y, size_t proc_grid_z);
-  
-    double GetDispersion(std::vector<double> &grad,std::vector<double> *virial = 0, bool use_ghost = 0);
-    double GetDispersionPME(std::vector<double> &grad,std::vector<double> *virial = 0, bool use_ghost = 0);
+
+    double GetDispersion(std::vector<double> &grad, std::vector<double> *virial = 0, bool use_ghost = 0);
+    double GetDispersionPME(std::vector<double> &grad, std::vector<double> *virial = 0, bool use_ghost = 0);
+    double GetDispersionPMElocal(std::vector<double> &grad, std::vector<double> *virial = 0, bool use_ghost = 0);
 
     void SetNewParameters(const std::vector<double> &xyz, bool do_grads, const double cutoff,
                           const std::vector<double> &box);
@@ -106,10 +106,18 @@ class Dispersion {
      */
     void SetCutoff(double cutoff);
 
+    /**
+     * Sets global box dimensions for PME solver; does not alter original PBC settings
+     * @param[in] box is a 9 component vector of double with
+     * the three main vectors of the cell: {v1x v1y v1z v2x v2y v2z v3x v3y v3z}
+     */
+    void SetBoxPMElocal(std::vector<double> box);
+
    private:
     void ReorderData();
     void CalculateDispersion(bool use_ghost = 0);
     void CalculateDispersionPME(bool use_ghost = 0);
+    void CalculateDispersionPMElocal(bool use_ghost = 0);
 
     // System xyz, not ordered XYZ. xyzxyz...(mon1)xyzxyz...(mon2) ...
     std::vector<double> sys_xyz_;
@@ -117,6 +125,8 @@ class Dispersion {
     std::vector<double> xyz_;
     // local/ghost descriptor for monomers
     std::vector<size_t> islocal_;
+    // local/ghost descriptor for atoms
+    std::vector<size_t> islocal_atom_;
     // Name of the monomers (h2o, f...)
     std::vector<std::string> mon_id_;
     // Number of sites of each mon
@@ -153,8 +163,12 @@ class Dispersion {
     double disp_energy_;
     // box of the system
     std::vector<double> box_;
+    // box in ABCabc notation
+    std::vector<double> box_ABCabc_;
     // inverted box of the system
     std::vector<double> box_inverse_;
+    // box of the domain-decomposed system
+    std::vector<double> box_PMElocal_;
     // use pbc in the electrostatics calculation
     bool use_pbc_;
     // dispersion cutoff
