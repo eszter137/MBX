@@ -304,19 +304,20 @@ subroutine IPModel_MBXPBC_Calc(this, at, e, local_e, f, virial, local_virial, ar
    !if( is_diagonal(at%lattice) ) then
    lattice_mbx(:) = 0.0
    lattice_mbx(1) = at%lattice(1,1)
-   lattice_mbx(2) = at%lattice(1,2)
-   lattice_mbx(3) = at%lattice(1,3)
-   lattice_mbx(4) = at%lattice(2,1)
+   lattice_mbx(2) = at%lattice(2,1)
+   lattice_mbx(3) = at%lattice(3,1)
+   lattice_mbx(4) = at%lattice(1,2)
    lattice_mbx(5) = at%lattice(2,2)
-   lattice_mbx(6) = at%lattice(2,3)
-   lattice_mbx(7) = at%lattice(3,1)
-   lattice_mbx(8) = at%lattice(3,2)
+   lattice_mbx(6) = at%lattice(3,2)
+   lattice_mbx(7) = at%lattice(1,3)
+   lattice_mbx(8) = at%lattice(2,3)
    lattice_mbx(9) = at%lattice(3,3)
    !else
    !   RAISE_ERROR('IPModel_MBXPBC_Calc - lattice must be orthorhombic for now',error)
    !endif
    
 
+   write(*,*) ("lattice_mbx" // lattice_mbx)
 
    !write(*,*) ("nats" // this%nats)
    sum_nats = (sum(this%nats))
